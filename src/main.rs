@@ -1,3 +1,43 @@
-fn main() {
-    println!("Hello from Arenta!");
+use std::env;
+use std::error::Error;
+use std::fs::File;
+
+mod task;
+
+fn print_version() {
+    const VERSION: &str = "v0.1.0";
+    println!("arenta {}", VERSION);
+}
+
+fn print_usage() {
+    println!("arenta - A daily task management tool with minimal overhead");
+    println!("usage: arenta [-hv]");
+}
+
+fn arenta_loop() -> Result<(), Box<dyn Error>> {
+    if let Err(..) = File::options()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(".arenta.lock")
+    {
+        eprintln!("lock file has been acquired by another process now");
+        return Ok(());
+    }
+    /// TODO:
+    std::fs::remove_file(".arenta.lock")?;
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() == 1 {
+        arenta_loop()
+    } else if args.len() == 2 && args[1] == "-v" {
+        print_version();
+        Ok(())
+    } else {
+        print_usage();
+        Ok(())
+    }
 }
