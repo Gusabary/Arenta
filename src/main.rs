@@ -2,6 +2,8 @@ use std::env;
 use std::error::Error;
 use std::fs::File;
 
+mod command;
+mod manager;
 mod task;
 
 fn print_version() {
@@ -24,7 +26,10 @@ fn arenta_loop() -> Result<(), Box<dyn Error>> {
         eprintln!("lock file has been acquired by another process now");
         return Ok(());
     }
-    /// TODO:
+
+    let mut manager = manager::Manager::new();
+    manager.start_loop();
+
     std::fs::remove_file(".arenta.lock")?;
     Ok(())
 }
