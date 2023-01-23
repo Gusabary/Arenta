@@ -1,6 +1,6 @@
 use chrono::offset::Local;
 use chrono::{DateTime, Duration};
-use termion::color;
+use colored::Colorize;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TaskStatus {
@@ -85,13 +85,7 @@ impl Task {
     }
 
     pub fn render_simple(&self, index: usize) {
-        print!(
-            "{}: {}{}{}  - ",
-            index,
-            termion::style::Bold,
-            self.description,
-            termion::style::Reset
-        );
+        print!("{}: {}  - ", index, self.description.bold(),);
         match self.status {
             TaskStatus::Planned => self.render_planned(),
             TaskStatus::Overdue => self.render_overdue(),
@@ -102,17 +96,12 @@ impl Task {
 
     fn render_planned(&self) {
         if self.planned_start.is_none() {
-            println!(
-                "{}planned{} but not in schedule yet",
-                color::Fg(color::Cyan),
-                color::Fg(color::Reset)
-            );
+            println!("{} but not in schedule yet", "planned".cyan());
         } else {
             let gap = get_duration(&Local::now(), &self.planned_start.unwrap());
             println!(
-                "{}planned{} to start in {} minutes",
-                color::Fg(color::Cyan),
-                color::Fg(color::Reset),
+                "{} to start in {} minutes",
+                "planned".cyan(),
                 gap.num_minutes()
             );
         }
@@ -120,20 +109,14 @@ impl Task {
 
     fn render_overdue(&self) {
         let gap = get_duration(&self.planned_start.unwrap(), &Local::now());
-        println!(
-            "{} minutes {}overdue{}",
-            gap.num_minutes(),
-            color::Fg(color::LightRed),
-            color::Fg(color::Reset)
-        );
+        println!("{} minutes {}", gap.num_minutes(), "overdue".bright_red());
     }
 
     fn render_ongoing(&self) {
         let gap = get_duration(&self.actual_start.unwrap(), &Local::now());
         println!(
-            "{}ongoing{} for {} minutes",
-            color::Fg(color::LightYellow),
-            color::Fg(color::Reset),
+            "{} for {} minutes",
+            "ongoing".bright_yellow(),
             gap.num_minutes()
         );
     }
@@ -141,9 +124,8 @@ impl Task {
     fn render_done(&self) {
         let gap = get_duration(&self.actual_complete.unwrap(), &Local::now());
         println!(
-            "{}done{} {} minutes ago",
-            color::Fg(color::LightGreen),
-            color::Fg(color::Reset),
+            "{} {} minutes ago",
+            "done".bright_green(),
             gap.num_minutes()
         );
     }
@@ -266,35 +248,5 @@ mod tests {
         assert!(!task.is_in_recent_n_days(1));
         assert!(task.is_in_recent_n_days(2));
         assert!(task.is_in_recent_n_days(3));
-    }
-
-    #[test]
-    fn test_A() {
-        let format = "%Y-%m-%d %H:%M:%S%z";
-        let now = DateTime::parse_from_str("2023-01-20 07:00:00+0000", format)
-            .unwrap()
-            .with_timezone(&Local);
-        let x = DateTime::parse_from_str("2023-01-18 07:00:00+0000", format)
-            .unwrap()
-            .with_timezone(&Local);
-
-        // println!("{:?}", now);
-
-        let past = now - Duration::days(2);
-        println!("{:?}", past);
-        println!("{:?}", past.naive_local());
-        let past = past.date_naive().and_hms_opt(0, 0, 0).unwrap();
-        println!("{:?}", past);
-        println!("{:?}", x.naive_local());
-        println!("{:?}", x.naive_local() > past);
-
-        // let gap = now.date_naive(
-        // let aa = now + Duration::minutes(60);
-        // // let aa = DateTime::parse_from_str("2023-01-23 16:55:00+0800", "%Y-%m-%d %H:%M:%S%z")
-        // //     .unwrap()
-        // //     .with_timezone(&Local);
-        // // let duration = aa-now;
-        // println!("{:?}", now);
-        // println!("{:?}", aa);
     }
 }

@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 inquire = { version = "0.5.3", features = ["date"] }
 chrono = "0.4.23"
-termion = "2.0.1"
+colored = "2.0.0"
