@@ -72,6 +72,7 @@ impl Manager {
                 planned_complete,
             ));
         }
+        println!("task {} created", self.tasks.len() - 1);
     }
 
     fn sort_tasks(&mut self) {
@@ -82,7 +83,8 @@ impl Manager {
             } else {
                 Ordering::Greater
             }
-        })
+        });
+        println!("all tasks sorted");
     }
 
     fn start_task(&mut self, index: usize) {
@@ -90,6 +92,7 @@ impl Manager {
             eprintln!("index out of range");
         } else {
             self.tasks[index].start();
+            println!("task {} started", index);
         }
     }
 
@@ -98,6 +101,7 @@ impl Manager {
             eprintln!("index out of range");
         } else {
             self.tasks[index].complete();
+            println!("task {} completed", index);
         }
     }
 
@@ -106,7 +110,7 @@ impl Manager {
             eprintln!("index out of range");
         } else {
             self.tasks.remove(index);
-            println!("task {} removed", index);
+            println!("task {} deleted", index);
         }
     }
 
@@ -128,6 +132,7 @@ impl Manager {
             check_and_update_datetime(&mut task.actual_start, "actual start");
             check_and_update_datetime(&mut task.actual_complete, "planned complete");
             task.update_status();
+            println!("task {} edited", index);
         }
     }
 
@@ -156,7 +161,17 @@ fn get_render_config() -> RenderConfig {
 }
 
 fn print_command_usage() {
-    println!("TODO: help");
+    println!("commands: ");
+    println!("  q / quit:              quit arenta");
+    println!("  h / help:              show this message");
+    println!("  n / new:               create a new task");
+    println!("  s / start <index>:     start task");
+    println!("  c / complete <index>:  complete task");
+    println!("  d / delete <index>:    delete task");
+    println!("  e / edit <index>:      edit task");
+    println!("  ls [-d <n>]:           list tasks of recent <n> days");
+    println!("  ls -t:                 list today's tasks with timeline");
+    println!("  sort:                  sort all the tasks");
 }
 
 fn get_datetime_input(hint: &str) -> DateTime<Local> {
