@@ -84,6 +84,40 @@ impl Task {
             .unwrap_or(true)
     }
 
+    pub fn has_higher_priority_than(&self, task: &Task) -> bool {
+        match self.status {
+            TaskStatus::Overdue => {
+                if task.status == TaskStatus::Overdue {
+                    self.planned_start.unwrap() < task.planned_start.unwrap()
+                } else {
+                    true
+                }
+            }
+            TaskStatus::Ongoing => {
+                if task.status == TaskStatus::Ongoing {
+                    self.actual_start.unwrap() > task.actual_start.unwrap()
+                } else {
+                    task.status != TaskStatus::Overdue
+                }
+            }
+            TaskStatus::Planned => {
+                if task.status == TaskStatus::Planned {
+                    let dt_max: DateTime<Local> = DateTime::<Local>::MAX_UTC.into();
+                    self.planned_start.unwrap_or(dt_max) < task.planned_start.unwrap_or(dt_max)
+                } else {
+                    task.status == TaskStatus::Done
+                }
+            }
+            TaskStatus::Done => {
+                if task.status == TaskStatus::Done {
+                    self.actual_complete.unwrap() > task.actual_complete.unwrap()
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
     pub fn render_simple(&self, index: usize) {
         print!("{}: {}  - ", index, self.description.bold(),);
         match self.status {
@@ -248,5 +282,46 @@ mod tests {
         assert!(!task.is_in_recent_n_days(1));
         assert!(task.is_in_recent_n_days(2));
         assert!(task.is_in_recent_n_days(3));
+    }
+
+    #[test]
+    fn test_has_higher_priority_than() {
+        fn overdue_task(gap: i64) -> Task {
+            Task {
+                status: TaskStatus::Overdue,
+                planned_start: Some(Local::now() + Duration::minutes(gap)),
+                ..task_template()
+            }
+        }
+        fn ongoing_task(gap: i64) -> Task {
+            Task {
+                status: TaskStatus::Ongoing,
+                actual_start: Some(Local::now() + Duration::minutes(gap)),
+                ..task_template()
+            }
+        }
+        fn planned_task(gap: Option<i64>) -> Task {
+            Task {
+                status: TaskStatus::Planned,
+                planned_start: gap.map(|gap| Local::now() + Duration::minutes(gap)),
+                ..task_template()
+            }
+        }
+        fn done_task(gap: i64) -> Task {
+            Task {
+                status: TaskStatus::Done,
+                actual_complete: Some(Local::now() + Duration::minutes(gap)),
+                ..task_template()
+            }
+        }
+        assert!(overdue_task(-2).has_higher_priority_than(&overdue_task(-1)));
+        assert!(ongoing_task(-1).has_higher_priority_than(&ongoing_task(-2)));
+        assert!(planned_task(Some(1)).has_higher_priority_than(&planned_task(Some(2))));
+        assert!(done_task(-1).has_higher_priority_than(&done_task(-2)));
+        assert!(overdue_task(-2).has_higher_priority_than(&ongoing_task(-1)));
+        assert!(ongoing_task(-1).has_higher_priority_than(&planned_task(Some(2))));
+        assert!(planned_task(Some(1)).has_higher_priority_than(&done_task(-2)));
+        assert!(planned_task(Some(1)).has_higher_priority_than(&planned_task(None)));
+        assert!(!planned_task(None).has_higher_priority_than(&planned_task(None)));
     }
 }

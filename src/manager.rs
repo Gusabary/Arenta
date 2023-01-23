@@ -5,6 +5,7 @@ use inquire::{
     ui::{RenderConfig, Styled},
     Confirm, CustomType, DateSelect, Text,
 };
+use std::cmp::Ordering;
 
 pub struct Manager {
     tasks: Vec<Task>,
@@ -24,22 +25,30 @@ impl Manager {
                 print_command_usage();
                 continue;
             }
-            match command.unwrap() {
-                Command::Empty => continue,
-                Command::Quit => break,
-                Command::Help => print_command_usage(),
-                Command::New => self.new_task(),
-                Command::Start(index) => self.start_task(index),
-                Command::Complete(index) => self.complete_task(index),
-                Command::Delete(index) => self.delete_task(index),
-                Command::Edit(index) => self.edit_task(index),
-                Command::List(list_option) => match list_option {
-                    ListOption::Naive => self.list_tasks_simple(0),
-                    ListOption::HistoricalDays(n) => self.list_tasks_simple(n),
-                    ListOption::Timeline => self.list_tasks_with_timeline(),
-                },
+            if self.dispatch_command(&command.unwrap()) {
+                break;
             }
         }
+    }
+
+    fn dispatch_command(&mut self, command: &Command) -> bool {
+        match command {
+            Command::Empty => return false,
+            Command::Quit => return true,
+            Command::Help => print_command_usage(),
+            Command::New => self.new_task(),
+            Command::Sort => self.sort_tasks(),
+            Command::Start(index) => self.start_task(*index),
+            Command::Complete(index) => self.complete_task(*index),
+            Command::Delete(index) => self.delete_task(*index),
+            Command::Edit(index) => self.edit_task(*index),
+            Command::List(list_option) => match list_option {
+                ListOption::Naive => self.list_tasks_simple(0),
+                ListOption::HistoricalDays(n) => self.list_tasks_simple(*n),
+                ListOption::Timeline => self.list_tasks_with_timeline(),
+            },
+        }
+        false
     }
 
     fn new_task(&mut self) {
@@ -63,6 +72,17 @@ impl Manager {
                 planned_complete,
             ));
         }
+    }
+
+    fn sort_tasks(&mut self) {
+        self.update_status_of_all_tasks();
+        self.tasks.sort_by(|ta, tb| {
+            if ta.has_higher_priority_than(tb) {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        })
     }
 
     fn start_task(&mut self, index: usize) {
@@ -112,7 +132,7 @@ impl Manager {
     }
 
     fn list_tasks_simple(&mut self, ndays: usize) {
-        self.tasks.iter_mut().for_each(|task| task.update_status());
+        self.update_status_of_all_tasks();
         self.tasks
             .iter()
             .filter(|&task| task.is_in_recent_n_days(ndays))
@@ -121,6 +141,10 @@ impl Manager {
     }
 
     fn list_tasks_with_timeline(&mut self) {}
+
+    fn update_status_of_all_tasks(&mut self) {
+        self.tasks.iter_mut().for_each(|task| task.update_status());
+    }
 }
 
 fn get_render_config() -> RenderConfig {

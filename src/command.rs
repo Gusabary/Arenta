@@ -11,6 +11,7 @@ pub enum Command {
     Quit,
     Help,
     New,
+    Sort,
     Start(usize),
     Complete(usize),
     Delete(usize),
@@ -28,6 +29,8 @@ pub fn parse_command(cmd: &str) -> Option<Command> {
         Some(Command::Help)
     } else if cmd == "n" || cmd == "new" {
         Some(Command::New)
+    } else if cmd == "sort" {
+        Some(Command::Sort)
     } else {
         let args: Vec<&str> = cmd.split(' ').collect();
         if args[0] == "ls" {
@@ -90,6 +93,7 @@ mod tests {
         assert_eq!(parse_command(" help"), Some(Command::Help));
         assert_eq!(parse_command("n"), Some(Command::New));
         assert_eq!(parse_command("new"), Some(Command::New));
+        assert_eq!(parse_command("sort "), Some(Command::Sort));
         assert_eq!(parse_command("s 1"), Some(Command::Start(1)));
         assert_eq!(parse_command("start 2"), Some(Command::Start(2)));
         assert_eq!(parse_command("start a"), None);
