@@ -17,11 +17,14 @@ fn print_usage() {
 }
 
 fn arenta_loop() -> Result<(), Box<dyn Error>> {
+    let mut lock_file = dirs::home_dir().unwrap();
+    lock_file.push(".arenta.lock");
+
     if let Err(..) = File::options()
         .read(true)
         .write(true)
         .create_new(true)
-        .open(".arenta.lock")
+        .open(lock_file.as_path())
     {
         eprintln!("lock file has been acquired by another process now");
         return Ok(());
@@ -30,7 +33,7 @@ fn arenta_loop() -> Result<(), Box<dyn Error>> {
     let mut manager = manager::Manager::new();
     manager.start_loop();
 
-    std::fs::remove_file(".arenta.lock")?;
+    std::fs::remove_file(lock_file.as_path())?;
     Ok(())
 }
 

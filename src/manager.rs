@@ -7,16 +7,25 @@ use inquire::{
     Confirm, CustomType, DateSelect, Text,
 };
 use std::cmp::Ordering;
+use std::path::PathBuf;
 
 pub struct Manager {
     tasks: Vec<Task>,
 }
 
+fn get_arenta_file_path() -> PathBuf {
+    let mut arenta_file = dirs::home_dir().unwrap();
+    arenta_file.push(".arenta");
+    arenta_file
+}
+
 fn load_tasks_from_file() -> Vec<Task> {
-    let mut reader = ReaderBuilder::new()
+    let reader = ReaderBuilder::new()
         .has_headers(false)
-        .from_path(".arenta")
-        .unwrap();
+        .from_path(get_arenta_file_path().as_path());
+    if reader.is_err() {
+        return vec![];
+    }
     fn record_to_task(record: StringRecord) -> Task {
         assert_eq!(record.len(), 5);
         Task {
@@ -29,6 +38,7 @@ fn load_tasks_from_file() -> Vec<Task> {
         }
     }
     reader
+        .unwrap()
         .records()
         .map(|result| record_to_task(result.unwrap()))
         .collect::<Vec<_>>()
@@ -184,7 +194,7 @@ impl Manager {
     }
 
     fn dump_tasks(&mut self) {
-        let mut writer = Writer::from_path(".arenta").unwrap();
+        let mut writer = Writer::from_path(get_arenta_file_path().as_path()).unwrap();
         self.tasks.iter().for_each(|task| {
             writer
                 .write_record([

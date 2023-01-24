@@ -8,3 +8,4 @@ inquire = { version = "0.5.3", features = ["date"] }
 chrono = "0.4.23"
 colored = "2.0.0"
 csv = "1.1"
+dirs = "4.0"
