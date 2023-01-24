@@ -61,7 +61,7 @@ pub fn parse_command(cmd: &str) -> Option<Command> {
             } else {
                 None
             }
-        } else if args[0] == "d" || args[0] == "delete" {
+        } else if args[0] == "delete" {
             if let Ok(index) = args[1].parse::<usize>() {
                 Some(Command::Delete(index))
             } else {
@@ -77,6 +77,20 @@ pub fn parse_command(cmd: &str) -> Option<Command> {
             None
         }
     }
+}
+
+pub fn print_command_usage() {
+    println!("commands: ");
+    println!("  q / quit              quit arenta");
+    println!("  h / help              show this message");
+    println!("  n / new               create a new task");
+    println!("  s / start <index>     start task");
+    println!("  c / complete <index>  complete task");
+    println!("  e / edit <index>      edit task");
+    println!("  delete <index>        delete task");
+    println!("  ls [-d <n>]           list tasks of recent <n> days");
+    println!("  ls -t                 list today's tasks with timeline");
+    println!("  sort                  sort all the tasks");
 }
 
 #[cfg(test)]
@@ -100,7 +114,7 @@ mod tests {
         assert_eq!(parse_command("c 1"), Some(Command::Complete(1)));
         assert_eq!(parse_command("complete 2"), Some(Command::Complete(2)));
         assert_eq!(parse_command("complete a"), None);
-        assert_eq!(parse_command("d 1"), Some(Command::Delete(1)));
+        assert_eq!(parse_command("d 1"), None);
         assert_eq!(parse_command("delete 2"), Some(Command::Delete(2)));
         assert_eq!(parse_command("delete a"), None);
         assert_eq!(parse_command("e 1"), Some(Command::Edit(1)));

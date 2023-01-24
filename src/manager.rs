@@ -1,4 +1,4 @@
-use crate::command::{parse_command, Command, ListOption};
+use crate::command::{parse_command, print_command_usage, Command, ListOption};
 use crate::task::{Task, TaskStatus};
 use crate::timeline::Timeline;
 use chrono::{DateTime, Duration, Local, NaiveDateTime, NaiveTime, TimeZone};
@@ -251,20 +251,6 @@ fn get_render_config() -> RenderConfig {
         answered_prompt_prefix: Styled::new(""),
         ..RenderConfig::default()
     }
-}
-
-fn print_command_usage() {
-    println!("commands: ");
-    println!("  q / quit              quit arenta");
-    println!("  h / help              show this message");
-    println!("  n / new               create a new task");
-    println!("  s / start <index>     start task");
-    println!("  c / complete <index>  complete task");
-    println!("  d / delete <index>    delete task");
-    println!("  e / edit <index>      edit task");
-    println!("  ls [-d <n>]           list tasks of recent <n> days");
-    println!("  ls -t                 list today's tasks with timeline");
-    println!("  sort                  sort all the tasks");
 }
 
 fn get_datetime_input(hint: &str) -> DateTime<Local> {
