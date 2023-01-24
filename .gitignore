@@ -9,3 +9,6 @@
 # Added by cargo
 
 /target
+
+.arenta
+.arenta.lock

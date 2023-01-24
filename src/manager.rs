@@ -1,6 +1,7 @@
 use crate::command::{parse_command, Command, ListOption};
-use crate::task::Task;
+use crate::task::{Task, TaskStatus};
 use chrono::{DateTime, Duration, Local, NaiveDateTime, NaiveTime, TimeZone};
+use csv::{ReaderBuilder, StringRecord, Writer};
 use inquire::{
     ui::{RenderConfig, Styled},
     Confirm, CustomType, DateSelect, Text,
@@ -11,18 +12,43 @@ pub struct Manager {
     tasks: Vec<Task>,
 }
 
+fn load_tasks_from_file() -> Vec<Task> {
+    let mut reader = ReaderBuilder::new()
+        .has_headers(false)
+        .from_path(".arenta")
+        .unwrap();
+    fn record_to_task(record: StringRecord) -> Task {
+        assert_eq!(record.len(), 5);
+        Task {
+            description: record.get(0).unwrap().to_string(),
+            planned_start: datetime_opt_from_string(record.get(1).unwrap()),
+            planned_complete: datetime_opt_from_string(record.get(2).unwrap()),
+            actual_start: datetime_opt_from_string(record.get(3).unwrap()),
+            actual_complete: datetime_opt_from_string(record.get(4).unwrap()),
+            status: TaskStatus::Planned,
+        }
+    }
+    reader
+        .records()
+        .map(|result| record_to_task(result.unwrap()))
+        .collect::<Vec<_>>()
+}
+
 impl Manager {
     pub fn new() -> Self {
-        Manager { tasks: vec![] }
+        Manager {
+            tasks: load_tasks_from_file(),
+        }
     }
 
     pub fn start_loop(&mut self) {
         inquire::set_global_render_config(get_render_config());
+        self.update_status_of_all_tasks();
         loop {
             let command = Text::new("arenta>").prompt().unwrap();
             let command = parse_command(&command);
             if command.is_none() {
-                print_command_usage();
+                println!("invalid command, type `h` to show usage");
                 continue;
             }
             if self.dispatch_command(&command.unwrap()) {
@@ -72,6 +98,7 @@ impl Manager {
                 planned_complete,
             ));
         }
+        self.dump_tasks();
         println!("task {} created", self.tasks.len() - 1);
     }
 
@@ -84,6 +111,7 @@ impl Manager {
                 Ordering::Greater
             }
         });
+        self.dump_tasks();
         println!("all tasks sorted");
     }
 
@@ -92,6 +120,7 @@ impl Manager {
             eprintln!("index out of range");
         } else {
             self.tasks[index].start();
+            self.dump_tasks();
             println!("task {} started", index);
         }
     }
@@ -101,6 +130,7 @@ impl Manager {
             eprintln!("index out of range");
         } else {
             self.tasks[index].complete();
+            self.dump_tasks();
             println!("task {} completed", index);
         }
     }
@@ -110,6 +140,7 @@ impl Manager {
             eprintln!("index out of range");
         } else {
             self.tasks.remove(index);
+            self.dump_tasks();
             println!("task {} deleted", index);
         }
     }
@@ -132,6 +163,7 @@ impl Manager {
             check_and_update_datetime(&mut task.actual_start, "actual start");
             check_and_update_datetime(&mut task.actual_complete, "planned complete");
             task.update_status();
+            self.dump_tasks();
             println!("task {} edited", index);
         }
     }
@@ -150,6 +182,38 @@ impl Manager {
     fn update_status_of_all_tasks(&mut self) {
         self.tasks.iter_mut().for_each(|task| task.update_status());
     }
+
+    fn dump_tasks(&mut self) {
+        let mut writer = Writer::from_path(".arenta").unwrap();
+        self.tasks.iter().for_each(|task| {
+            writer
+                .write_record([
+                    &task.description,
+                    &datetime_opt_to_string(&task.planned_start),
+                    &datetime_opt_to_string(&task.planned_complete),
+                    &datetime_opt_to_string(&task.actual_start),
+                    &datetime_opt_to_string(&task.actual_complete),
+                ])
+                .unwrap()
+        });
+        writer.flush().unwrap();
+    }
+}
+
+fn datetime_opt_to_string(datetime_opt: &Option<DateTime<Local>>) -> String {
+    datetime_opt.map_or("".to_string(), |dt| dt.to_rfc3339())
+}
+
+fn datetime_opt_from_string(s: &str) -> Option<DateTime<Local>> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(
+            DateTime::parse_from_rfc3339(s)
+                .unwrap()
+                .with_timezone(&Local),
+        )
+    }
 }
 
 fn get_render_config() -> RenderConfig {
@@ -162,16 +226,16 @@ fn get_render_config() -> RenderConfig {
 
 fn print_command_usage() {
     println!("commands: ");
-    println!("  q / quit:              quit arenta");
-    println!("  h / help:              show this message");
-    println!("  n / new:               create a new task");
-    println!("  s / start <index>:     start task");
-    println!("  c / complete <index>:  complete task");
-    println!("  d / delete <index>:    delete task");
-    println!("  e / edit <index>:      edit task");
-    println!("  ls [-d <n>]:           list tasks of recent <n> days");
-    println!("  ls -t:                 list today's tasks with timeline");
-    println!("  sort:                  sort all the tasks");
+    println!("  q / quit              quit arenta");
+    println!("  h / help              show this message");
+    println!("  n / new               create a new task");
+    println!("  s / start <index>     start task");
+    println!("  c / complete <index>  complete task");
+    println!("  d / delete <index>    delete task");
+    println!("  e / edit <index>      edit task");
+    println!("  ls [-d <n>]           list tasks of recent <n> days");
+    println!("  ls -t                 list today's tasks with timeline");
+    println!("  sort                  sort all the tasks");
 }
 
 fn get_datetime_input(hint: &str) -> DateTime<Local> {
