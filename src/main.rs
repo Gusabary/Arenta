@@ -5,6 +5,7 @@ use std::fs::File;
 mod command;
 mod manager;
 mod task;
+mod timeline;
 
 fn print_version() {
     const VERSION: &str = "v0.1.0";

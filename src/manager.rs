@@ -1,5 +1,6 @@
 use crate::command::{parse_command, Command, ListOption};
 use crate::task::{Task, TaskStatus};
+use crate::timeline::Timeline;
 use chrono::{DateTime, Duration, Local, NaiveDateTime, NaiveTime, TimeZone};
 use csv::{ReaderBuilder, StringRecord, Writer};
 use inquire::{
@@ -55,8 +56,12 @@ impl Manager {
         inquire::set_global_render_config(get_render_config());
         self.update_status_of_all_tasks();
         loop {
-            let command = Text::new("arenta>").prompt().unwrap();
-            let command = parse_command(&command);
+            let command = Text::new("arenta>").prompt();
+            if command.is_err() {
+                eprintln!("command error, exit");
+                break;
+            }
+            let command = parse_command(&command.unwrap());
             if command.is_none() {
                 println!("invalid command, type `h` to show usage");
                 continue;
@@ -187,7 +192,21 @@ impl Manager {
             .for_each(|(index, task)| task.render_simple(index));
     }
 
-    fn list_tasks_with_timeline(&mut self) {}
+    fn list_tasks_with_timeline(&mut self) {
+        self.update_status_of_all_tasks();
+        let tasks: Vec<&Task> = self
+            .tasks
+            .iter()
+            .filter(|&task| task.is_in_recent_n_days(0))
+            .take(10)
+            .collect();
+        Timeline::new(&tasks).draw();
+        println!();
+        tasks
+            .iter()
+            .enumerate()
+            .for_each(|(index, task)| task.render_simple(index));
+    }
 
     fn update_status_of_all_tasks(&mut self) {
         self.tasks.iter_mut().for_each(|task| task.update_status());

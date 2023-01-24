@@ -1,6 +1,6 @@
 use chrono::offset::Local;
 use chrono::{DateTime, Duration};
-use colored::Colorize;
+use colored::{Color, Colorize};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TaskStatus {
@@ -119,7 +119,7 @@ impl Task {
     }
 
     pub fn render_simple(&self, index: usize) {
-        print!("{}: {}  - ", index, self.description.bold(),);
+        print!("{}. {}  - ", index, self.description.bold());
         match self.status {
             TaskStatus::Planned => self.render_planned(),
             TaskStatus::Overdue => self.render_overdue(),
@@ -163,6 +163,15 @@ impl Task {
             gap.num_minutes()
         );
     }
+
+    pub fn color_of_status(&self) -> Color {
+        match self.status {
+            TaskStatus::Planned => Color::Cyan,
+            TaskStatus::Overdue => Color::BrightRed,
+            TaskStatus::Ongoing => Color::BrightYellow,
+            TaskStatus::Done => Color::BrightGreen,
+        }
+    }
 }
 
 fn get_duration(t0: &DateTime<Local>, t1: &DateTime<Local>) -> Duration {
@@ -172,9 +181,8 @@ fn get_duration(t0: &DateTime<Local>, t1: &DateTime<Local>) -> Duration {
 
 #[cfg(test)]
 mod tests {
-    use chrono::naive::Days;
-
     use super::*;
+    use chrono::naive::Days;
 
     #[test]
     fn test_new_immediate_task() {
