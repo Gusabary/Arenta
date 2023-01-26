@@ -5,7 +5,7 @@ use chrono::{DateTime, Duration, Local, NaiveDateTime, NaiveTime, TimeZone};
 use csv::{ReaderBuilder, StringRecord, Writer};
 use inquire::{
     ui::{RenderConfig, Styled},
-    Confirm, CustomType, DateSelect, Text,
+    Confirm, CustomType, DateSelect, Select, Text,
 };
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -102,15 +102,11 @@ impl Manager {
         if start_immediately {
             self.tasks.push(Task::new_immediate_task(&description));
         } else {
-            let planned_start = get_datetime_input("planned start");
-            let planned_duration = CustomType::<usize>::new("planned time to take (in minutes):")
-                .prompt()
-                .unwrap();
-            let planned_complete = planned_start + Duration::minutes(planned_duration as i64);
+            let (planned_start, planned_complete) = get_planned_pair();
             self.tasks.push(Task::new_planned_task(
                 &description,
-                planned_start,
-                planned_complete,
+                planned_start.unwrap(),
+                planned_complete.unwrap(),
             ));
         }
         self.dump_tasks();
@@ -173,10 +169,27 @@ impl Manager {
             if !new_description.is_empty() {
                 task.description = new_description
             }
-            check_and_update_datetime(&mut task.planned_start, "planned start");
-            check_and_update_datetime(&mut task.planned_complete, "planned complete");
-            check_and_update_datetime(&mut task.actual_start, "actual start");
-            check_and_update_datetime(&mut task.actual_complete, "planned complete");
+            match get_edit_operation("planned start and complete time") {
+                EditOperation::Ignore => (),
+                EditOperation::Reset => (task.planned_start, task.planned_complete) = (None, None),
+                EditOperation::Update => {
+                    (task.planned_start, task.planned_complete) = get_planned_pair()
+                }
+            }
+            match get_edit_operation("actual start time") {
+                EditOperation::Ignore => (),
+                EditOperation::Reset => task.actual_start = None,
+                EditOperation::Update => {
+                    task.actual_start = Some(get_datetime_input("actual start"))
+                }
+            }
+            match get_edit_operation("actual complete time") {
+                EditOperation::Ignore => (),
+                EditOperation::Reset => task.actual_complete = None,
+                EditOperation::Update => {
+                    task.actual_complete = Some(get_datetime_input("actual complete"))
+                }
+            }
             task.update_status();
             self.dump_tasks();
             println!("task {} edited", index);
@@ -269,22 +282,31 @@ fn get_datetime_input(hint: &str) -> DateTime<Local> {
     Local.from_local_datetime(&datetime).unwrap()
 }
 
-fn check_and_update_datetime(datetime: &mut Option<DateTime<Local>>, hint: &str) {
-    let update = Confirm::new(&format!("update {}?", hint))
-        .with_default(false)
-        .with_placeholder("No")
+fn get_planned_pair() -> (Option<DateTime<Local>>, Option<DateTime<Local>>) {
+    let start_dt = get_datetime_input("planned start");
+    let duration = CustomType::<usize>::new("planned time to take (in minutes):")
         .prompt()
         .unwrap();
-    if update {
-        let reset = Confirm::new(&format!("reset {}?", hint))
-            .with_default(false)
-            .with_placeholder("No")
-            .prompt()
-            .unwrap();
-        if reset {
-            *datetime = None
-        } else {
-            *datetime = Some(get_datetime_input(hint));
-        }
+    let complete_dt = start_dt + Duration::minutes(duration as i64);
+    (Some(start_dt), Some(complete_dt))
+}
+
+enum EditOperation {
+    Ignore,
+    Reset,
+    Update,
+}
+
+fn get_edit_operation(hint: &str) -> EditOperation {
+    let options = vec!["don't update", "reset", "update to..."];
+    let option = Select::new(&format!("update {}?", hint), options)
+        .without_help_message()
+        .prompt()
+        .unwrap();
+    match option {
+        "don't update" => EditOperation::Ignore,
+        "reset" => EditOperation::Reset,
+        "update to..." => EditOperation::Update,
+        _ => unreachable!(),
     }
 }
