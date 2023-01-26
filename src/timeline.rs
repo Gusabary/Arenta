@@ -1,7 +1,7 @@
 use std::vec;
 
-use crate::task::Task;
-use chrono::{DateTime, Local};
+use crate::{manager::timeline_index_to_char, task::Task};
+use chrono::{DateTime, Local, NaiveDate};
 use colored::{Color, Colorize};
 
 const UI_MAX_WIDTH: usize = 73;
@@ -41,18 +41,25 @@ impl Pixel {
 }
 
 pub struct Timeline<'a> {
-    tasks: &'a Vec<&'a Task>,
-    ui: Vec<Vec<Pixel>>,
-    pos_of_now: i64,
+    tasks: &'a Vec<(usize, &'a Task)>,
+    canvas: Vec<Vec<Pixel>>,
+    date: NaiveDate,
+    pos_of_now: Option<i64>,
 }
 
 impl<'a> Timeline<'a> {
-    pub fn new(tasks: &'a Vec<&'a Task>) -> Self {
-        assert!(tasks.len() < 10);
+    pub fn new(tasks: &'a Vec<(usize, &'a Task)>, date: NaiveDate) -> Self {
+        assert!(tasks.len() <= 26);
+        let pos_of_now = if Local::now().date_naive() == date {
+            Some(get_pos_in_row(&Local::now()))
+        } else {
+            None
+        };
         Timeline {
             tasks,
-            ui: vec![],
-            pos_of_now: get_pos_in_row(&Local::now()),
+            canvas: vec![],
+            date,
+            pos_of_now,
         }
     }
 
@@ -60,39 +67,42 @@ impl<'a> Timeline<'a> {
         self.tasks
             .iter()
             .enumerate()
-            .for_each(|(index, task)| self.populate_task(task, index));
+            .for_each(|(timeline_index, &(_, task))| {
+                self.populate_task(task, timeline_index_to_char(timeline_index))
+            });
         self.populate_scale_line();
         self.populate_now_cursor();
-        self.ui.iter().for_each(|row| {
+        println!("{}", self.date.format("%F").to_string().bold().underline());
+        self.canvas.iter().for_each(|row| {
             row.iter().for_each(|p| p.render());
             println!();
         });
     }
 
     fn populate_scale_line(&mut self) {
-        self.ui.insert(
+        self.canvas.insert(
             0,
             "8     9     10    11    12    13    14    15    16    17    18    19    20"
                 .chars()
                 .map(|content| Pixel::new(content, None))
                 .collect(),
         );
-        self.ui.insert(
+        self.canvas.insert(
             1,
             "|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|"
                 .chars()
                 .map(|content| Pixel::new(content, None))
                 .collect(),
         );
-        self.ui.insert(
-            self.ui.len(),
+        self.canvas.insert(
+            self.canvas.len(),
             "|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|"
                 .chars()
                 .map(|content| Pixel::new(content, None))
                 .collect(),
         );
-        self.ui.insert(
-            self.ui.len(),
+        self.canvas.insert(
+            self.canvas.len(),
             "8     9     10    11    12    13    14    15    16    17    18    19    20"
                 .chars()
                 .map(|content| Pixel::new(content, None))
@@ -101,33 +111,46 @@ impl<'a> Timeline<'a> {
     }
 
     fn populate_now_cursor(&mut self) {
-        let pos = self.pos_of_now.clamp(0, UI_MAX_WIDTH as i64 - 1) as usize;
-        let bottom = self.ui.len() - 2;
-        self.ui[1][pos] = Pixel::new('v', Some(Color::Red));
-        self.ui[bottom][pos] = Pixel::new('^', Some(Color::Red));
-        self.ui[2..=bottom]
+        if self.pos_of_now.is_none() {
+            return;
+        }
+        let pos = self.pos_of_now.unwrap().clamp(0, UI_MAX_WIDTH as i64 - 1) as usize;
+        let bottom = self.canvas.len() - 2;
+        self.canvas[1][pos] = Pixel::new('v', Some(Color::Red));
+        self.canvas[bottom][pos] = Pixel::new('^', Some(Color::Red));
+        self.canvas[2..=bottom]
             .iter_mut()
             .for_each(|row| row[pos].set_if_empty(Pixel::new('|', Some(Color::Red))));
     }
 
-    fn populate_task(&mut self, task: &Task, index: usize) {
-        if task.planned_start.is_some() && task.planned_complete.is_some() {
+    fn populate_task(&mut self, task: &Task, index: char) {
+        if self.date_includes(&task.planned_start) && self.date_includes(&task.planned_complete) {
             let start_pos = get_pos_in_row(&task.planned_start.unwrap());
             let end_pos = get_pos_in_row(&task.planned_complete.unwrap());
-            self.populate_line(
+            self.populate_index_and_line(
                 start_pos,
                 end_pos,
                 index,
                 Pixel::new('-', Some(task.color_of_status())),
             );
         }
-        if task.actual_start.is_some() {
+        if self.date_includes(&task.actual_start) {
             let start_pos = get_pos_in_row(&task.actual_start.unwrap());
             let end_pos = task
                 .actual_complete
-                .map_or(self.pos_of_now, |dt| get_pos_in_row(&dt));
-            self.populate_line(
+                .map_or(self.pos_of_now.unwrap_or(UI_MAX_WIDTH as i64 - 1), |dt| {
+                    get_pos_in_row(&dt)
+                });
+            self.populate_index_and_line(
                 start_pos,
+                end_pos,
+                index,
+                Pixel::new('=', Some(task.color_of_status())),
+            );
+        } else if self.date_includes(&task.actual_complete) {
+            let end_pos = get_pos_in_row(&task.actual_complete.unwrap());
+            self.populate_index_and_line(
+                1,
                 end_pos,
                 index,
                 Pixel::new('=', Some(task.color_of_status())),
@@ -135,28 +158,30 @@ impl<'a> Timeline<'a> {
         }
     }
 
-    fn populate_line(&mut self, start_pos: i64, end_pos: i64, index: usize, pixel: Pixel) {
+    fn date_includes(&self, datetime: &Option<DateTime<Local>>) -> bool {
+        datetime.is_some() && datetime.unwrap().date_naive() == self.date
+    }
+
+    fn populate_index_and_line(&mut self, start_pos: i64, end_pos: i64, index: char, pixel: Pixel) {
         let start_pos = start_pos.clamp(1, UI_MAX_WIDTH as i64 - 1) as usize;
         let end_pos = end_pos.clamp(1, UI_MAX_WIDTH as i64 - 1) as usize;
         let row_opt = self
-            .ui
+            .canvas
             .iter()
             .position(|row| can_put_in_row(row, start_pos, end_pos));
         let row = row_opt.unwrap_or_else(|| self.new_row());
         self.put_in_row(row, start_pos, end_pos, pixel);
         assert!(start_pos >= 1);
-        assert!(index < 10);
-        let content = index.to_string().chars().next().unwrap();
-        self.ui[row][start_pos - 1] = Pixel::new(content, pixel.color);
+        self.canvas[row][start_pos - 1] = Pixel::new(index, pixel.color);
     }
 
     fn new_row(&mut self) -> usize {
-        self.ui.push(vec![Pixel::default(); UI_MAX_WIDTH]);
-        self.ui.len() - 1
+        self.canvas.push(vec![Pixel::default(); UI_MAX_WIDTH]);
+        self.canvas.len() - 1
     }
 
     fn put_in_row(&mut self, row: usize, start_pos: usize, end_pos: usize, pixel: Pixel) {
-        self.ui[row].splice(start_pos..=end_pos, vec![pixel; end_pos - start_pos + 1]);
+        self.canvas[row].splice(start_pos..=end_pos, vec![pixel; end_pos - start_pos + 1]);
     }
 }
 

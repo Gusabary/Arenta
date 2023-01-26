@@ -1,11 +1,11 @@
-use crate::command::{parse_command, print_command_usage, Command, ListOption};
+use crate::command::{parse_command, print_command_usage, Command, DateFilterOp, ListOption};
 use crate::task::{Task, TaskStatus};
 use crate::timeline::Timeline;
 use chrono::{DateTime, Duration, Local, NaiveDateTime, NaiveTime, TimeZone};
 use csv::{ReaderBuilder, StringRecord, Writer};
 use inquire::{
     ui::{RenderConfig, Styled},
-    Confirm, CustomType, DateSelect, Select, Text,
+    CustomType, DateSelect, Select, Text,
 };
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -99,10 +99,9 @@ impl Manager {
             Command::Complete(index) => self.complete_task(*index),
             Command::Delete(index) => self.delete_task(*index),
             Command::Edit(index) => self.edit_task(*index),
-            Command::List(list_option) => match list_option {
-                ListOption::Naive => self.list_tasks_simple(0),
-                ListOption::HistoricalDays(n) => self.list_tasks_simple(*n),
-                ListOption::Timeline => self.list_tasks_with_timeline(),
+            Command::List(list_option) => match list_option.has_timeline {
+                true => self.list_tasks_with_timeline(list_option),
+                false => self.list_tasks(list_option),
             },
         }
         false
@@ -110,20 +109,23 @@ impl Manager {
 
     fn new_task(&mut self) {
         let description = Text::new("description:").prompt().unwrap();
-        let start_immediately = Confirm::new("start immediately?")
-            .with_default(true)
-            .with_placeholder("Yes")
+        let options = vec!["start immediately", "put in backlog", "plan to..."];
+        let option = Select::new("how to arrange this task", options)
+            .without_help_message()
             .prompt()
             .unwrap();
-        if start_immediately {
-            self.tasks.push(Task::new_immediate_task(&description));
-        } else {
-            let (planned_start, planned_complete) = get_planned_pair();
-            self.tasks.push(Task::new_planned_task(
-                &description,
-                planned_start.unwrap(),
-                planned_complete.unwrap(),
-            ));
+        match option {
+            "start immediately" => self.tasks.push(Task::new_immediate_task(&description)),
+            "put in backlog" => self.tasks.push(Task::new_backlog_task(&description)),
+            "plan to..." => {
+                let (planned_start, planned_complete) = get_planned_pair();
+                self.tasks.push(Task::new_planned_task(
+                    &description,
+                    planned_start.unwrap(),
+                    planned_complete.unwrap(),
+                ));
+            }
+            _ => unreachable!(),
         }
         self.dump_tasks();
         println!("task {} created", self.tasks.len() - 1);
@@ -212,29 +214,38 @@ impl Manager {
         }
     }
 
-    fn list_tasks_simple(&mut self, ndays: usize) {
+    fn list_tasks(&mut self, option: &ListOption) {
         self.update_status_of_all_tasks();
         self.tasks
             .iter()
-            .filter(|&task| task.is_in_recent_n_days(ndays))
             .enumerate()
-            .for_each(|(index, task)| task.render_simple(index));
+            .filter(|(_, task)| task.satisfy(option))
+            .for_each(|(index, task)| task.render(index, None, option.is_verbose));
     }
 
-    fn list_tasks_with_timeline(&mut self) {
+    fn list_tasks_with_timeline(&mut self, option: &ListOption) {
         self.update_status_of_all_tasks();
-        let tasks: Vec<&Task> = self
+        let tasks: Vec<(usize, &Task)> = self
             .tasks
             .iter()
-            .filter(|&task| task.is_in_recent_n_days(0))
-            .take(10)
+            .enumerate()
+            .filter(|(_, task)| task.satisfy(option))
+            .take(26)
             .collect();
-        Timeline::new(&tasks).draw();
+        let (op, date) = option.date_filter;
+        assert_eq!(op, DateFilterOp::Equal);
+        Timeline::new(&tasks, date).draw();
         println!();
         tasks
             .iter()
             .enumerate()
-            .for_each(|(index, task)| task.render_simple(index));
+            .for_each(|(timeline_index, &(index, task))| {
+                task.render(
+                    index,
+                    Some(timeline_index_to_char(timeline_index)),
+                    option.is_verbose,
+                )
+            });
     }
 
     fn update_status_of_all_tasks(&mut self) {
@@ -256,6 +267,10 @@ impl Manager {
         });
         writer.flush().unwrap();
     }
+}
+
+pub fn timeline_index_to_char(index: usize) -> char {
+    char::from_u32('a' as u32 + index as u32).unwrap()
 }
 
 fn datetime_opt_to_string(datetime_opt: &Option<DateTime<Local>>) -> String {

@@ -1,13 +1,16 @@
 use chrono::offset::Local;
-use chrono::{DateTime, Duration};
+use chrono::{DateTime, Duration, NaiveDate};
 use colored::{Color, Colorize};
+
+use crate::command::{DateFilterOp, ListOption};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TaskStatus {
+    Backlog,
     Planned,
     Overdue,
     Ongoing,
-    Done,
+    Complete,
 }
 
 #[derive(Debug)]
@@ -51,6 +54,17 @@ impl Task {
         }
     }
 
+    pub fn new_backlog_task(description: &str) -> Self {
+        Task {
+            description: description.to_string(),
+            planned_start: None,
+            planned_complete: None,
+            actual_start: None,
+            actual_complete: None,
+            status: TaskStatus::Backlog,
+        }
+    }
+
     pub fn start(&mut self) {
         self.actual_start = Some(Local::now());
         self.status = TaskStatus::Ongoing;
@@ -58,30 +72,37 @@ impl Task {
 
     pub fn complete(&mut self) {
         self.actual_complete = Some(Local::now());
-        self.status = TaskStatus::Done;
+        self.status = TaskStatus::Complete;
     }
 
     pub fn update_status(&mut self) {
         self.status = {
             let now = Local::now();
             if self.actual_complete.map(|dt| dt < now).unwrap_or(false) {
-                TaskStatus::Done
+                TaskStatus::Complete
             } else if self.actual_start.map(|dt| dt < now).unwrap_or(false) {
                 TaskStatus::Ongoing
             } else if self.planned_start.map(|dt| dt < now).unwrap_or(false) {
                 TaskStatus::Overdue
-            } else {
+            } else if self.planned_start.is_some() {
                 TaskStatus::Planned
+            } else {
+                TaskStatus::Backlog
             }
         };
     }
 
-    pub fn is_in_recent_n_days(&self, n: usize) -> bool {
-        let since = Local::now() - Duration::days(n as i64);
-        let since = since.date_naive().and_hms_opt(0, 0, 0).unwrap();
-        self.actual_complete
-            .map(|dt| dt.naive_local() > since)
-            .unwrap_or(true)
+    pub fn satisfy(&self, option: &ListOption) -> bool {
+        match self.status {
+            TaskStatus::Backlog => option.include_backlog,
+            _ => {
+                let (op, date) = &option.date_filter;
+                compare_date(&self.planned_start, *op, date)
+                    || compare_date(&self.planned_complete, *op, date)
+                    || compare_date(&self.actual_start, *op, date)
+                    || compare_date(&self.actual_complete, *op, date)
+            }
+        }
     }
 
     pub fn has_higher_priority_than(&self, task: &Task) -> bool {
@@ -102,76 +123,147 @@ impl Task {
             }
             TaskStatus::Planned => {
                 if task.status == TaskStatus::Planned {
-                    let dt_max: DateTime<Local> = DateTime::<Local>::MAX_UTC.into();
-                    self.planned_start.unwrap_or(dt_max) < task.planned_start.unwrap_or(dt_max)
+                    self.planned_start.unwrap() < task.planned_start.unwrap()
                 } else {
-                    task.status == TaskStatus::Done
+                    task.status == TaskStatus::Complete || task.status == TaskStatus::Backlog
                 }
             }
-            TaskStatus::Done => {
-                if task.status == TaskStatus::Done {
+            TaskStatus::Complete => {
+                if task.status == TaskStatus::Complete {
                     self.actual_complete.unwrap() > task.actual_complete.unwrap()
                 } else {
-                    false
+                    task.status == TaskStatus::Backlog
                 }
+            }
+            TaskStatus::Backlog => false,
+        }
+    }
+
+    pub fn render(&self, index: usize, timeline_index: Option<char>, is_verbose: bool) {
+        if let Some(timeline_index) = timeline_index {
+            print!("{}({}). ", index, timeline_index);
+        } else {
+            print!("{}. ", index);
+        }
+        if is_verbose {
+            self.render_time_verbose();
+        } else {
+            self.render_time_simple();
+        }
+        print!("{}", self.description.bold());
+        println!();
+    }
+
+    pub fn render_time_simple(&self) {
+        print!("{}  ", self.get_render_status_string());
+    }
+
+    pub fn render_time_verbose(&self) {
+        print!("{: <56}", self.get_render_status_string());
+        print!("{}", self.get_render_status_padding());
+        fn datetime_opt_to_str(datetime_opt: &Option<DateTime<Local>>) -> String {
+            match datetime_opt {
+                Some(dt) => dt.format("%F %R").to_string(),
+                None => "unset".to_string(),
+            }
+        }
+        print!("{: <18}", datetime_opt_to_str(&self.planned_start));
+        print!("{: <18}", datetime_opt_to_str(&self.planned_complete));
+        print!("{: <18}", datetime_opt_to_str(&self.actual_start));
+        print!("{: <18}", datetime_opt_to_str(&self.actual_complete));
+    }
+
+    fn get_render_status_string(&self) -> String {
+        match self.status {
+            TaskStatus::Backlog => format!("in {}", "backlog".color(self.color_of_status())),
+            TaskStatus::Planned => {
+                let gap = get_duration(&Local::now(), &self.planned_start.unwrap());
+                format!(
+                    "{} to start in {} minutes",
+                    "planned".color(self.color_of_status()),
+                    gap.num_minutes()
+                )
+            }
+            TaskStatus::Overdue => {
+                let gap = get_duration(&self.planned_start.unwrap(), &Local::now());
+                format!(
+                    "{} minutes {}",
+                    gap.num_minutes(),
+                    "overdue".color(self.color_of_status())
+                )
+            }
+            TaskStatus::Ongoing => {
+                let gap = get_duration(&self.actual_start.unwrap(), &Local::now());
+                format!(
+                    "{} for {} minutes",
+                    "ongoing".color(self.color_of_status()),
+                    gap.num_minutes()
+                )
+            }
+            TaskStatus::Complete => {
+                let gap = get_duration(&self.actual_complete.unwrap(), &Local::now());
+                format!(
+                    "{} {} minutes ago",
+                    "complete".color(self.color_of_status()),
+                    gap.num_minutes()
+                )
             }
         }
     }
 
-    pub fn render_simple(&self, index: usize) {
-        print!("{}. {}  - ", index, self.description.bold());
+    fn get_render_status_padding(&self) -> String {
         match self.status {
-            TaskStatus::Planned => self.render_planned(),
-            TaskStatus::Overdue => self.render_overdue(),
-            TaskStatus::Ongoing => self.render_ongoing(),
-            TaskStatus::Done => self.render_done(),
+            TaskStatus::Backlog | TaskStatus::Overdue | TaskStatus::Ongoing => "  ".to_string(),
+            TaskStatus::Planned => " ".to_string(),
+            TaskStatus::Complete => "".to_string(),
         }
-    }
-
-    fn render_planned(&self) {
-        if self.planned_start.is_none() {
-            println!("{} but not in schedule yet", "planned".cyan());
-        } else {
-            let gap = get_duration(&Local::now(), &self.planned_start.unwrap());
-            println!(
-                "{} to start in {} minutes",
-                "planned".cyan(),
-                gap.num_minutes()
-            );
-        }
-    }
-
-    fn render_overdue(&self) {
-        let gap = get_duration(&self.planned_start.unwrap(), &Local::now());
-        println!("{} minutes {}", gap.num_minutes(), "overdue".bright_red());
-    }
-
-    fn render_ongoing(&self) {
-        let gap = get_duration(&self.actual_start.unwrap(), &Local::now());
-        println!(
-            "{} for {} minutes",
-            "ongoing".bright_yellow(),
-            gap.num_minutes()
-        );
-    }
-
-    fn render_done(&self) {
-        let gap = get_duration(&self.actual_complete.unwrap(), &Local::now());
-        println!(
-            "{} {} minutes ago",
-            "done".bright_green(),
-            gap.num_minutes()
-        );
     }
 
     pub fn color_of_status(&self) -> Color {
+        const COLOR_GREY: Color = Color::TrueColor {
+            r: 128,
+            g: 128,
+            b: 128,
+        };
+        const COLOR_CYAN: Color = Color::TrueColor {
+            r: 51,
+            g: 255,
+            b: 255,
+        };
+        const COLOR_RED: Color = Color::TrueColor {
+            r: 255,
+            g: 102,
+            b: 102,
+        };
+        const COLOR_YELLOW: Color = Color::TrueColor {
+            r: 255,
+            g: 255,
+            b: 102,
+        };
+        const COLOR_GREEN: Color = Color::TrueColor {
+            r: 51,
+            g: 255,
+            b: 51,
+        };
         match self.status {
-            TaskStatus::Planned => Color::Cyan,
-            TaskStatus::Overdue => Color::BrightRed,
-            TaskStatus::Ongoing => Color::BrightYellow,
-            TaskStatus::Done => Color::BrightGreen,
+            TaskStatus::Backlog => COLOR_GREY,
+            TaskStatus::Planned => COLOR_CYAN,
+            TaskStatus::Overdue => COLOR_RED,
+            TaskStatus::Ongoing => COLOR_YELLOW,
+            TaskStatus::Complete => COLOR_GREEN,
         }
     }
+}
+
+fn compare_date(self_dt: &Option<DateTime<Local>>, op: DateFilterOp, date: &NaiveDate) -> bool {
+    self_dt.is_some()
+        && match op {
+            DateFilterOp::Earlier => self_dt.unwrap().date_naive() < *date,
+            DateFilterOp::EarlierEqual => self_dt.unwrap().date_naive() <= *date,
+            DateFilterOp::Equal => self_dt.unwrap().date_naive() == *date,
+            DateFilterOp::Later => self_dt.unwrap().date_naive() > *date,
+            DateFilterOp::LaterEqual => self_dt.unwrap().date_naive() >= *date,
+        }
 }
 
 fn get_duration(t0: &DateTime<Local>, t1: &DateTime<Local>) -> Duration {
@@ -243,16 +335,17 @@ mod tests {
     fn test_render_simple() {
         let task = Task {
             description: "planned but no schedule".to_string(),
+            status: TaskStatus::Backlog,
             ..task_template()
         };
-        task.render_simple(0);
+        task.render(0, None, false);
 
         let task = Task {
             description: "planned but no schedule".to_string(),
             planned_start: Local::now().checked_add_days(Days::new(1)),
             ..task_template()
         };
-        task.render_simple(1);
+        task.render(1, None, false);
 
         let task = Task {
             description: "overdue".to_string(),
@@ -260,7 +353,7 @@ mod tests {
             status: TaskStatus::Overdue,
             ..task_template()
         };
-        task.render_simple(2);
+        task.render(2, None, false);
 
         let task = Task {
             description: "ongoing".to_string(),
@@ -268,28 +361,37 @@ mod tests {
             status: TaskStatus::Ongoing,
             ..task_template()
         };
-        task.render_simple(3);
+        task.render(3, None, false);
 
         let task = Task {
-            description: "done".to_string(),
+            description: "complete".to_string(),
             actual_complete: Local::now().checked_sub_days(Days::new(1)),
-            status: TaskStatus::Done,
+            status: TaskStatus::Complete,
             ..task_template()
         };
-        task.render_simple(4);
+        task.render(4, None, false);
     }
 
     #[test]
-    fn test_is_in_recent_n_days() {
-        assert!(task_template().is_in_recent_n_days(5));
-        let task = Task {
-            actual_complete: Some(Local::now() - Duration::days(2)),
-            ..task_template()
-        };
-        assert!(!task.is_in_recent_n_days(0));
-        assert!(!task.is_in_recent_n_days(1));
-        assert!(task.is_in_recent_n_days(2));
-        assert!(task.is_in_recent_n_days(3));
+    fn test_compare_date() {
+        let dt = Some(
+            DateTime::parse_from_str("2023-01-26 09:00:00+0800", "%F %H:%M:%S%z")
+                .unwrap()
+                .with_timezone(&Local),
+        );
+        let yesterday = NaiveDate::parse_from_str("2023-01-25", "%F").unwrap();
+        let today = NaiveDate::parse_from_str("2023-01-26", "%F").unwrap();
+        let tomorrow = NaiveDate::parse_from_str("2023-01-27", "%F").unwrap();
+        assert!(!compare_date(&dt, DateFilterOp::Earlier, &today));
+        assert!(compare_date(&dt, DateFilterOp::Earlier, &tomorrow));
+        assert!(compare_date(&dt, DateFilterOp::EarlierEqual, &today));
+        assert!(compare_date(&dt, DateFilterOp::EarlierEqual, &tomorrow));
+        assert!(compare_date(&dt, DateFilterOp::Equal, &today));
+        assert!(!compare_date(&dt, DateFilterOp::Equal, &tomorrow));
+        assert!(compare_date(&dt, DateFilterOp::Later, &yesterday));
+        assert!(!compare_date(&dt, DateFilterOp::Later, &today));
+        assert!(compare_date(&dt, DateFilterOp::LaterEqual, &yesterday));
+        assert!(compare_date(&dt, DateFilterOp::LaterEqual, &today));
     }
 
     #[test]
@@ -312,28 +414,33 @@ mod tests {
                 ..task_template()
             }
         }
-        fn planned_task(gap: Option<i64>) -> Task {
+        fn planned_task(gap: i64) -> Task {
             Task {
                 status: TaskStatus::Planned,
-                planned_start: gap.map(|gap| Local::now() + Duration::minutes(gap)),
+                planned_start: Some(Local::now() + Duration::minutes(gap)),
                 ..task_template()
             }
         }
         fn done_task(gap: i64) -> Task {
             Task {
-                status: TaskStatus::Done,
+                status: TaskStatus::Complete,
                 actual_complete: Some(Local::now() + Duration::minutes(gap)),
+                ..task_template()
+            }
+        }
+        fn backlog_task() -> Task {
+            Task {
+                status: TaskStatus::Backlog,
                 ..task_template()
             }
         }
         assert!(overdue_task(-2).has_higher_priority_than(&overdue_task(-1)));
         assert!(ongoing_task(-1).has_higher_priority_than(&ongoing_task(-2)));
-        assert!(planned_task(Some(1)).has_higher_priority_than(&planned_task(Some(2))));
+        assert!(planned_task(1).has_higher_priority_than(&planned_task(2)));
         assert!(done_task(-1).has_higher_priority_than(&done_task(-2)));
         assert!(overdue_task(-2).has_higher_priority_than(&ongoing_task(-1)));
-        assert!(ongoing_task(-1).has_higher_priority_than(&planned_task(Some(2))));
-        assert!(planned_task(Some(1)).has_higher_priority_than(&done_task(-2)));
-        assert!(planned_task(Some(1)).has_higher_priority_than(&planned_task(None)));
-        assert!(!planned_task(None).has_higher_priority_than(&planned_task(None)));
+        assert!(ongoing_task(-1).has_higher_priority_than(&planned_task(2)));
+        assert!(planned_task(1).has_higher_priority_than(&done_task(-2)));
+        assert!(done_task(-1).has_higher_priority_than(&backlog_task()));
     }
 }
