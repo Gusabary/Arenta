@@ -3,6 +3,7 @@ use crate::task::{Task, TaskStatus};
 use crate::timeline::Timeline;
 use chrono::{DateTime, Duration, Local, NaiveDateTime, NaiveTime, TimeZone};
 use csv::{ReaderBuilder, StringRecord, Writer};
+use inquire::error::InquireResult;
 use inquire::{
     ui::{RenderConfig, Styled},
     CustomType, DateSelect, Select, Text,
@@ -82,43 +83,47 @@ impl Manager {
                 println!("invalid command, type `h` to show usage");
                 continue;
             }
-            if self.dispatch_command(&command.unwrap()) {
-                break;
+            match self.dispatch_command(&command.unwrap()) {
+                Err(..) => {
+                    eprintln!("command error, exit");
+                    break;
+                }
+                Ok(true) => break,
+                Ok(false) => (),
             }
         }
     }
 
-    fn dispatch_command(&mut self, command: &Command) -> bool {
+    fn dispatch_command(&mut self, command: &Command) -> InquireResult<bool> {
         match command {
-            Command::Empty => return false,
-            Command::Quit => return true,
+            Command::Empty => return Ok(false),
+            Command::Quit => return Ok(true),
             Command::Help => print_command_usage(),
-            Command::New => self.new_task(),
+            Command::New => self.new_task()?,
             Command::Sort => self.sort_tasks(),
             Command::Start(index) => self.start_task(*index),
             Command::Complete(index) => self.complete_task(*index),
             Command::Delete(index) => self.delete_task(*index),
-            Command::Edit(index) => self.edit_task(*index),
+            Command::Edit(index) => self.edit_task(*index)?,
             Command::List(list_option) => match list_option.has_timeline {
                 true => self.list_tasks_with_timeline(list_option),
                 false => self.list_tasks(list_option),
             },
         }
-        false
+        Ok(false)
     }
 
-    fn new_task(&mut self) {
-        let description = Text::new("description:").prompt().unwrap();
+    fn new_task(&mut self) -> InquireResult<()> {
+        let description = Text::new("description:").prompt()?;
         let options = vec!["start immediately", "put in backlog", "plan to..."];
         let option = Select::new("how to arrange this task", options)
             .without_help_message()
-            .prompt()
-            .unwrap();
+            .prompt()?;
         match option {
             "start immediately" => self.tasks.push(Task::new_immediate_task(&description)),
             "put in backlog" => self.tasks.push(Task::new_backlog_task(&description)),
             "plan to..." => {
-                let (planned_start, planned_complete) = get_planned_pair();
+                let (planned_start, planned_complete) = get_planned_pair()?;
                 self.tasks.push(Task::new_planned_task(
                     &description,
                     planned_start.unwrap(),
@@ -129,6 +134,7 @@ impl Manager {
         }
         self.dump_tasks();
         println!("task {} created", self.tasks.len() - 1);
+        Ok(())
     }
 
     fn sort_tasks(&mut self) {
@@ -174,7 +180,7 @@ impl Manager {
         }
     }
 
-    fn edit_task(&mut self, index: usize) {
+    fn edit_task(&mut self, index: usize) -> InquireResult<()> {
         if self.tasks.len() <= index {
             eprintln!("index out of range");
         } else {
@@ -182,8 +188,7 @@ impl Manager {
             let new_description = Text::new("description:")
                 .with_placeholder(&task.description)
                 .with_help_message("press enter if don't update description")
-                .prompt()
-                .unwrap();
+                .prompt()?;
             if !new_description.is_empty() {
                 task.description = new_description
             }
@@ -191,27 +196,28 @@ impl Manager {
                 EditOperation::Ignore => (),
                 EditOperation::Reset => (task.planned_start, task.planned_complete) = (None, None),
                 EditOperation::Update => {
-                    (task.planned_start, task.planned_complete) = get_planned_pair()
+                    (task.planned_start, task.planned_complete) = get_planned_pair()?
                 }
             }
             match get_edit_operation("actual start time") {
                 EditOperation::Ignore => (),
                 EditOperation::Reset => task.actual_start = None,
                 EditOperation::Update => {
-                    task.actual_start = Some(get_datetime_input("actual start"))
+                    task.actual_start = Some(get_datetime_input("actual start")?)
                 }
             }
             match get_edit_operation("actual complete time") {
                 EditOperation::Ignore => (),
                 EditOperation::Reset => task.actual_complete = None,
                 EditOperation::Update => {
-                    task.actual_complete = Some(get_datetime_input("actual complete"))
+                    task.actual_complete = Some(get_datetime_input("actual complete")?)
                 }
             }
             task.update_status();
             self.dump_tasks();
             println!("task {} edited", index);
         }
+        Ok(())
     }
 
     fn list_tasks(&mut self, option: &ListOption) {
@@ -297,29 +303,26 @@ fn get_render_config() -> RenderConfig {
     }
 }
 
-fn get_datetime_input(hint: &str) -> DateTime<Local> {
+fn get_datetime_input(hint: &str) -> InquireResult<DateTime<Local>> {
     let date = DateSelect::new(&format!("{} date:", hint))
         .with_help_message("select a date")
-        .prompt()
-        .unwrap();
+        .prompt()?;
     let time = CustomType::<NaiveTime>::new(&format!("{} time:", hint))
         .with_parser(&|time| NaiveTime::parse_from_str(time, "%H:%M").map_err(|_| ()))
         .with_formatter(&|time| time.format("%H:%M").to_string())
         .with_error_message("please type a valid time.")
         .with_help_message("time in %H:%M format")
-        .prompt()
-        .unwrap();
+        .prompt()?;
     let datetime = NaiveDateTime::new(date, time);
-    Local.from_local_datetime(&datetime).unwrap()
+    Ok(Local.from_local_datetime(&datetime).unwrap())
 }
 
-fn get_planned_pair() -> (Option<DateTime<Local>>, Option<DateTime<Local>>) {
-    let start_dt = get_datetime_input("planned start");
-    let duration = CustomType::<usize>::new("planned time to take (in minutes):")
-        .prompt()
-        .unwrap();
+type PlannedPairResult = InquireResult<(Option<DateTime<Local>>, Option<DateTime<Local>>)>;
+fn get_planned_pair() -> PlannedPairResult {
+    let start_dt = get_datetime_input("planned start")?;
+    let duration = CustomType::<usize>::new("planned time to take (in minutes):").prompt()?;
     let complete_dt = start_dt + Duration::minutes(duration as i64);
-    (Some(start_dt), Some(complete_dt))
+    Ok((Some(start_dt), Some(complete_dt)))
 }
 
 enum EditOperation {
