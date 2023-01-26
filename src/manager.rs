@@ -29,12 +29,28 @@ fn load_tasks_from_file() -> Vec<Task> {
     }
     fn record_to_task(record: StringRecord) -> Task {
         assert_eq!(record.len(), 5);
+        let planned_start = datetime_opt_from_string(record.get(1).unwrap());
+        let planned_complete = datetime_opt_from_string(record.get(2).unwrap());
+        let actual_start = datetime_opt_from_string(record.get(3).unwrap());
+        let actual_complete = datetime_opt_from_string(record.get(4).unwrap());
+        if planned_start.is_some() != planned_complete.is_some() {
+            panic!("planned start and complete should always come in pair");
+        }
+        if planned_start.is_some() && planned_start.unwrap() > planned_complete.unwrap() {
+            panic!("planned start shouldn't be later than planned complete");
+        }
+        if actual_start.is_some()
+            && actual_complete.is_some()
+            && actual_start.unwrap() > actual_complete.unwrap()
+        {
+            panic!("actual start shouldn't be later than actual complete");
+        }
         Task {
             description: record.get(0).unwrap().to_string(),
-            planned_start: datetime_opt_from_string(record.get(1).unwrap()),
-            planned_complete: datetime_opt_from_string(record.get(2).unwrap()),
-            actual_start: datetime_opt_from_string(record.get(3).unwrap()),
-            actual_complete: datetime_opt_from_string(record.get(4).unwrap()),
+            planned_start,
+            planned_complete,
+            actual_start,
+            actual_complete,
             status: TaskStatus::Planned,
         }
     }
