@@ -158,7 +158,7 @@ impl Manager {
         } else {
             self.tasks[index].start();
             self.dump_tasks();
-            println!("task {} started", index);
+            println!("task {index} started");
         }
     }
 
@@ -168,7 +168,7 @@ impl Manager {
         } else {
             self.tasks[index].complete();
             self.dump_tasks();
-            println!("task {} completed", index);
+            println!("task {index} completed");
         }
     }
 
@@ -178,7 +178,7 @@ impl Manager {
         } else {
             self.tasks[index].delete();
             self.dump_tasks();
-            println!("task {} deleted", index);
+            println!("task {index} deleted");
         }
     }
 
@@ -217,7 +217,7 @@ impl Manager {
             }
             task.update_status();
             self.dump_tasks();
-            println!("task {} edited", index);
+            println!("task {index} edited");
         }
         Ok(())
     }
@@ -330,10 +330,10 @@ fn get_render_config() -> RenderConfig {
 }
 
 fn get_datetime_input(hint: &str) -> InquireResult<DateTime<Local>> {
-    let date = DateSelect::new(&format!("{} date:", hint))
+    let date = DateSelect::new(&format!("{hint} date:"))
         .with_help_message("select a date")
         .prompt()?;
-    let time = CustomType::<NaiveTime>::new(&format!("{} time:", hint))
+    let time = CustomType::<NaiveTime>::new(&format!("{hint} time:"))
         .with_parser(&|time| NaiveTime::parse_from_str(time, "%H:%M").map_err(|_| ()))
         .with_formatter(&|time| time.format("%H:%M").to_string())
         .with_error_message("please type a valid time.")
@@ -359,7 +359,7 @@ enum EditOperation {
 
 fn get_edit_operation(hint: &str) -> EditOperation {
     let options = vec!["don't update", "reset", "update to..."];
-    let option = Select::new(&format!("update {}?", hint), options)
+    let option = Select::new(&format!("update {hint}?"), options)
         .without_help_message()
         .prompt()
         .unwrap();

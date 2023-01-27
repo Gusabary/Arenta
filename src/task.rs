@@ -149,9 +149,9 @@ impl Task {
 
     pub fn render(&self, index: usize, timeline_index: Option<char>, is_verbose: bool) {
         if let Some(timeline_index) = timeline_index {
-            print!("{}({}). ", index, timeline_index);
+            print!("{index}({timeline_index}). ");
         } else {
-            print!("{}. ", index);
+            print!("{index}. ");
         }
 
         if self.is_deleted {

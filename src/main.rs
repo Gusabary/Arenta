@@ -8,8 +8,8 @@ mod task;
 mod timeline;
 
 fn print_version() {
-    const VERSION: &str = "v0.1.0";
-    println!("arenta {}", VERSION);
+    const VERSION: &str = "v1.0.0";
+    println!("arenta {VERSION}");
 }
 
 fn print_usage() {
