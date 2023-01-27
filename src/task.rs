@@ -167,7 +167,7 @@ impl Task {
         }
 
         if is_verbose {
-            self.render_time_verbose();
+            self.render_time_verbose(index >= 10);
         } else {
             self.render_time_simple();
         }
@@ -178,8 +178,12 @@ impl Task {
         print!("{}  ", self.get_render_status_string());
     }
 
-    pub fn render_time_verbose(&self) {
-        print!("{: <56}", self.get_render_status_string());
+    pub fn render_time_verbose(&self, is_two_digit_index: bool) {
+        if is_two_digit_index {
+            print!("{: <55}", self.get_render_status_string());
+        } else {
+            print!("{: <56}", self.get_render_status_string());
+        }
         print!("{}", self.get_render_status_padding());
         fn datetime_opt_to_str(datetime_opt: &Option<DateTime<Local>>) -> String {
             match datetime_opt {

@@ -224,6 +224,7 @@ impl Manager {
 
     fn list_tasks(&mut self, option: &ListOption) {
         self.update_status_of_all_tasks();
+        render_header_if_verbose_list(option);
         self.tasks
             .iter()
             .enumerate()
@@ -244,6 +245,7 @@ impl Manager {
         assert_eq!(op, DateFilterOp::Equal);
         Timeline::new(&tasks, date).draw();
         println!();
+        render_header_if_verbose_list(option);
         tasks
             .iter()
             .enumerate()
@@ -280,6 +282,23 @@ impl Manager {
         });
         writer.flush().unwrap();
     }
+}
+
+fn render_header_if_verbose_list(option: &ListOption) {
+    if !option.is_verbose {
+        return;
+    }
+    let indent = if option.has_timeline { 6 } else { 3 };
+    println!(
+        "{}{: <35}{: <18}{: <18}{: <18}{: <18}description",
+        " ".repeat(indent),
+        "status",
+        "planned start",
+        "planned complete",
+        "actual start",
+        "actual complete"
+    );
+    println!("{}", "-".repeat(118 + indent));
 }
 
 pub fn timeline_index_to_char(index: usize) -> char {
