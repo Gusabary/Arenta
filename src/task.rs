@@ -21,6 +21,7 @@ pub struct Task {
     pub actual_start: Option<DateTime<Local>>,
     pub actual_complete: Option<DateTime<Local>>,
     pub status: TaskStatus,
+    pub is_deleted: bool,
 }
 
 impl Task {
@@ -32,6 +33,7 @@ impl Task {
             actual_start: Some(Local::now()),
             actual_complete: None,
             status: TaskStatus::Ongoing,
+            is_deleted: false,
         }
     }
 
@@ -51,6 +53,7 @@ impl Task {
             } else {
                 TaskStatus::Planned
             },
+            is_deleted: false,
         }
     }
 
@@ -62,6 +65,7 @@ impl Task {
             actual_start: None,
             actual_complete: None,
             status: TaskStatus::Backlog,
+            is_deleted: false,
         }
     }
 
@@ -73,6 +77,10 @@ impl Task {
     pub fn complete(&mut self) {
         self.actual_complete = Some(Local::now());
         self.status = TaskStatus::Complete;
+    }
+
+    pub fn delete(&mut self) {
+        self.is_deleted = true;
     }
 
     pub fn update_status(&mut self) {
@@ -145,13 +153,25 @@ impl Task {
         } else {
             print!("{}. ", index);
         }
+
+        if self.is_deleted {
+            println!(
+                "{}",
+                "(deleted)".color(Color::TrueColor {
+                    r: 100,
+                    g: 100,
+                    b: 100
+                })
+            );
+            return;
+        }
+
         if is_verbose {
             self.render_time_verbose();
         } else {
             self.render_time_simple();
         }
-        print!("{}", self.description.bold());
-        println!();
+        println!("{}", self.description.bold());
     }
 
     pub fn render_time_simple(&self) {
@@ -328,6 +348,7 @@ mod tests {
             actual_start: None,
             actual_complete: None,
             status: TaskStatus::Planned,
+            is_deleted: false,
         }
     }
 

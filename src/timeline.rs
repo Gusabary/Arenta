@@ -124,6 +124,9 @@ impl<'a> Timeline<'a> {
     }
 
     fn populate_task(&mut self, task: &Task, index: char) {
+        if task.is_deleted {
+            return;
+        }
         if self.date_includes(&task.planned_start) && self.date_includes(&task.planned_complete) {
             let start_pos = get_pos_in_row(&task.planned_start.unwrap());
             let end_pos = get_pos_in_row(&task.planned_complete.unwrap());

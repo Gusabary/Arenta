@@ -29,7 +29,7 @@ fn load_tasks_from_file() -> Vec<Task> {
         return vec![];
     }
     fn record_to_task(record: StringRecord) -> Task {
-        assert_eq!(record.len(), 5);
+        assert_eq!(record.len(), 6);
         let planned_start = datetime_opt_from_string(record.get(1).unwrap());
         let planned_complete = datetime_opt_from_string(record.get(2).unwrap());
         let actual_start = datetime_opt_from_string(record.get(3).unwrap());
@@ -53,6 +53,7 @@ fn load_tasks_from_file() -> Vec<Task> {
             actual_start,
             actual_complete,
             status: TaskStatus::Planned,
+            is_deleted: record.get(5).unwrap().parse::<bool>().unwrap(),
         }
     }
     reader
@@ -138,6 +139,7 @@ impl Manager {
     }
 
     fn sort_tasks(&mut self) {
+        self.clean_deleted_tasks();
         self.update_status_of_all_tasks();
         self.tasks.sort_by(|ta, tb| {
             if ta.has_higher_priority_than(tb) {
@@ -174,7 +176,7 @@ impl Manager {
         if self.tasks.len() <= index {
             eprintln!("index out of range");
         } else {
-            self.tasks.remove(index);
+            self.tasks[index].delete();
             self.dump_tasks();
             println!("task {} deleted", index);
         }
@@ -254,6 +256,10 @@ impl Manager {
             });
     }
 
+    fn clean_deleted_tasks(&mut self) {
+        self.tasks.retain(|task| !task.is_deleted);
+    }
+
     fn update_status_of_all_tasks(&mut self) {
         self.tasks.iter_mut().for_each(|task| task.update_status());
     }
@@ -268,6 +274,7 @@ impl Manager {
                     &datetime_opt_to_string(&task.planned_complete),
                     &datetime_opt_to_string(&task.actual_start),
                     &datetime_opt_to_string(&task.actual_complete),
+                    &task.is_deleted.to_string(),
                 ])
                 .unwrap()
         });
