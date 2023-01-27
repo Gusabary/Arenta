@@ -122,7 +122,7 @@ impl Manager {
             .prompt()?;
         match option {
             "start immediately" => self.tasks.push(Task::new_immediate_task(&description)),
-            "put in backlog" => self.tasks.push(Task::new_backlog_task(&description)),
+            "put into backlog" => self.tasks.push(Task::new_backlog_task(&description)),
             "plan to..." => {
                 let (planned_start, planned_complete) = get_planned_pair()?;
                 self.tasks.push(Task::new_planned_task(
@@ -288,9 +288,9 @@ fn render_header_if_verbose_list(option: &ListOption) {
     if !option.is_verbose {
         return;
     }
-    let indent = if option.has_timeline { 6 } else { 3 };
+    let indent = if option.has_timeline { 7 } else { 4 };
     println!(
-        "{}{: <35}{: <18}{: <18}{: <18}{: <18}description",
+        "{}{: <35}{: <20}{: <20}{: <20}{: <20}description",
         " ".repeat(indent),
         "status",
         "planned start",
@@ -298,7 +298,7 @@ fn render_header_if_verbose_list(option: &ListOption) {
         "actual start",
         "actual complete"
     );
-    println!("{}", "-".repeat(118 + indent));
+    println!("{}", "-".repeat(126 + indent));
 }
 
 pub fn timeline_index_to_char(index: usize) -> char {

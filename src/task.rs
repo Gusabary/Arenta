@@ -148,10 +148,11 @@ impl Task {
     }
 
     pub fn render(&self, index: usize, timeline_index: Option<char>, is_verbose: bool) {
+        let padding = if index >= 10 { " " } else { "  " };
         if let Some(timeline_index) = timeline_index {
-            print!("{index}({timeline_index}). ");
+            print!("{index}({timeline_index}).{padding}");
         } else {
-            print!("{index}. ");
+            print!("{index}.{padding}");
         }
 
         if self.is_deleted {
@@ -167,7 +168,7 @@ impl Task {
         }
 
         if is_verbose {
-            self.render_time_verbose(index >= 10);
+            self.render_time_verbose();
         } else {
             self.render_time_simple();
         }
@@ -178,23 +179,19 @@ impl Task {
         print!("{}  ", self.get_render_status_string());
     }
 
-    pub fn render_time_verbose(&self, is_two_digit_index: bool) {
-        if is_two_digit_index {
-            print!("{: <55}", self.get_render_status_string());
-        } else {
-            print!("{: <56}", self.get_render_status_string());
-        }
+    pub fn render_time_verbose(&self) {
+        print!("{: <56}", self.get_render_status_string());
         print!("{}", self.get_render_status_padding());
         fn datetime_opt_to_str(datetime_opt: &Option<DateTime<Local>>) -> String {
             match datetime_opt {
                 Some(dt) => dt.format("%F %R").to_string(),
-                None => "unset".to_string(),
+                None => "-".to_string(),
             }
         }
-        print!("{: <18}", datetime_opt_to_str(&self.planned_start));
-        print!("{: <18}", datetime_opt_to_str(&self.planned_complete));
-        print!("{: <18}", datetime_opt_to_str(&self.actual_start));
-        print!("{: <18}", datetime_opt_to_str(&self.actual_complete));
+        print!("{: <20}", datetime_opt_to_str(&self.planned_start));
+        print!("{: <20}", datetime_opt_to_str(&self.planned_complete));
+        print!("{: <20}", datetime_opt_to_str(&self.actual_start));
+        print!("{: <20}", datetime_opt_to_str(&self.actual_complete));
     }
 
     fn get_render_status_string(&self) -> String {
