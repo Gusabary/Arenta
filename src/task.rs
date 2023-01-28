@@ -75,6 +75,9 @@ impl Task {
     }
 
     pub fn complete(&mut self) {
+        if self.actual_start.is_none() {
+            self.actual_start = Some(Local::now());
+        }
         self.actual_complete = Some(Local::now());
         self.status = TaskStatus::Complete;
     }

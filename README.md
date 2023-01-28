@@ -1,23 +1,26 @@
 # Arenta
 
-![](https://img.shields.io/badge/version-v1.0.0-9cf)![](https://img.shields.io/badge/license-MIT-blue)
+![](https://img.shields.io/badge/version-v1.0.1-9cf) ![](https://img.shields.io/badge/license-MIT-blue)
 
 A terminal-based daily task management tool with minimal overhead.
 
 ## Demo
 
+![](./asset/demo.gif)
+
 ## Features
 
 + Complete CRUD support of daily tasks with intuitive syntax
-+ Visualized task schedule with timeline
++ Visualized task schedule with colorful timeline
 + A single executable binary and naturally terminal based
-+ Retentiveness by saving and loading tasks to local file
++ Retentiveness by storing tasks in local file
 
 ## Install
 
 Several alternatives:
 
-+ **Recommended**: `cargo install --git https://github.com/Gusabary/Arenta.git`
++ **Recommended**: `cargo install arenta`
++ `cargo install --git https://github.com/Gusabary/Arenta.git`
 + Download binary from [Release](https://github.com/Gusabary/Arenta/releases) page and put it into `$PATH`
 + Clone the repo and build from source
 
@@ -25,7 +28,7 @@ Several alternatives:
 
 Use `arenta -h` to show help messages and `arenta -v` to check the version.
 
-Use `arenta` to start an interactive session, in which you could manage your daily tasks.
+Use `arenta` to start an interactive session, in which you could manage daily tasks easily.
 
 ### Task Definition
 
@@ -70,15 +73,16 @@ The interactive session accepts valid Arenta commands:
   task 0 completed
   ```
 
-+ Type is `ls` or `ll` with `[date_filter]` and `[flags]` to list all tasks in specified date range.
++ Type in `ls` or `ll` with `[date_filter]` and `[flags]` to list all tasks in specified date range.
 
+  + `ll` will render a visualized timeline as well, in which the planned period is represented as `-` while actual period is `=`
   + `[date_filter]` is in format of `<op><date>`
     + `<op>` could be `<`, `<=`, `>`, `>=` or empty, which indicates `==`. Note that for `ll`, `<op>` must be empty.     
     + `<date>` could take format of `mm-dd`, `yyyy-mm-dd` or just an integer, which indicates offset to today.
   + `[flags]` could contain `b` or `v`
     + `b` flag to display backlog tasks as well
     + `v` flag to display in verbose mode
-
+  
   ```
   # list today's tasks
   > ls
@@ -92,6 +96,8 @@ The interactive session accepts valid Arenta commands:
   # list yesterday's tasks including backlog and timeline in verbose mode
   > ll -1 bv
   ```
+  
++ Type in `h` or `help` to show the complete usage of all Arenta commands
 
 ## Todos
 

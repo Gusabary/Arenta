@@ -116,7 +116,7 @@ impl Manager {
 
     fn new_task(&mut self) -> InquireResult<()> {
         let description = Text::new("description:").prompt()?;
-        let options = vec!["start immediately", "put in backlog", "plan to..."];
+        let options = vec!["start immediately", "put into backlog", "plan to..."];
         let option = Select::new("how to arrange this task", options)
             .without_help_message()
             .prompt()?;
