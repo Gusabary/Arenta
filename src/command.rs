@@ -169,11 +169,11 @@ pub fn print_command_usage() {
     println!("  c / complete <index>   complete task");
     println!("  e / edit <index>       edit task");
     println!("  delete <index>         delete task");
-    println!("  sort                   sort all the tasks");
+    println!("  sort                   clean deleted tasks and sort other tasks");
     println!("  ls [date_filter] [bv]  list tasks, without timeline");
     println!("  ll [date_filter] [bv]  list tasks, with timeline");
     println!("    [date_filter] is in format of `<op><date>`");
-    println!("      <op> could be <, <=, >, >= or empty, which indicates `==`, note that for `ll`, <op> must use empty");
+    println!("      <op> could be <, <=, >, >= or empty, which indicates `==`, note that for `ll`, <op> must be empty");
     println!("      <date> could in format of mm-dd, yyyy-mm-dd or an integer, which indicates offset to today");
     println!("    if `b` flag specified, it means display backlog tasks as well");
     println!("    if `v` flag specified, it means display in verbose mode");

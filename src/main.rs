@@ -8,12 +8,12 @@ mod task;
 mod timeline;
 
 fn print_version() {
-    const VERSION: &str = "v0.1.0";
-    println!("arenta {}", VERSION);
+    const VERSION: &str = "v1.0.1";
+    println!("arenta {VERSION}");
 }
 
 fn print_usage() {
-    println!("arenta - A daily task management tool with minimal overhead");
+    println!("arenta - A terminal-based daily task management tool with minimal overhead");
     println!("usage: arenta [-hv]");
 }
 

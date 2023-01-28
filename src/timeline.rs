@@ -1,7 +1,7 @@
 use std::vec;
 
 use crate::{manager::timeline_index_to_char, task::Task};
-use chrono::{DateTime, Local, NaiveDate};
+use chrono::{DateTime, Local, NaiveDate, NaiveTime};
 use colored::{Color, Colorize};
 
 const UI_MAX_WIDTH: usize = 73;
@@ -124,6 +124,9 @@ impl<'a> Timeline<'a> {
     }
 
     fn populate_task(&mut self, task: &Task, index: char) {
+        if task.is_deleted {
+            return;
+        }
         if self.date_includes(&task.planned_start) && self.date_includes(&task.planned_complete) {
             let start_pos = get_pos_in_row(&task.planned_start.unwrap());
             let end_pos = get_pos_in_row(&task.planned_complete.unwrap());
@@ -188,11 +191,7 @@ impl<'a> Timeline<'a> {
 fn get_pos_in_row(dt: &DateTime<Local>) -> i64 {
     const START_HOUR: u32 = 8;
     const TIMELINE_TICK: usize = 10;
-    let start_of_day = Local::now()
-        .date_naive()
-        .and_hms_opt(START_HOUR, 0, 0)
-        .unwrap();
-    let offset = dt.naive_local() - start_of_day;
+    let offset = dt.time() - NaiveTime::from_hms_opt(START_HOUR, 0, 0).unwrap();
     offset.num_minutes() / TIMELINE_TICK as i64
 }
 

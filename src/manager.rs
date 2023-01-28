@@ -29,7 +29,7 @@ fn load_tasks_from_file() -> Vec<Task> {
         return vec![];
     }
     fn record_to_task(record: StringRecord) -> Task {
-        assert_eq!(record.len(), 5);
+        assert_eq!(record.len(), 6);
         let planned_start = datetime_opt_from_string(record.get(1).unwrap());
         let planned_complete = datetime_opt_from_string(record.get(2).unwrap());
         let actual_start = datetime_opt_from_string(record.get(3).unwrap());
@@ -53,6 +53,7 @@ fn load_tasks_from_file() -> Vec<Task> {
             actual_start,
             actual_complete,
             status: TaskStatus::Planned,
+            is_deleted: record.get(5).unwrap().parse::<bool>().unwrap(),
         }
     }
     reader
@@ -115,13 +116,13 @@ impl Manager {
 
     fn new_task(&mut self) -> InquireResult<()> {
         let description = Text::new("description:").prompt()?;
-        let options = vec!["start immediately", "put in backlog", "plan to..."];
+        let options = vec!["start immediately", "put into backlog", "plan to..."];
         let option = Select::new("how to arrange this task", options)
             .without_help_message()
             .prompt()?;
         match option {
             "start immediately" => self.tasks.push(Task::new_immediate_task(&description)),
-            "put in backlog" => self.tasks.push(Task::new_backlog_task(&description)),
+            "put into backlog" => self.tasks.push(Task::new_backlog_task(&description)),
             "plan to..." => {
                 let (planned_start, planned_complete) = get_planned_pair()?;
                 self.tasks.push(Task::new_planned_task(
@@ -138,6 +139,7 @@ impl Manager {
     }
 
     fn sort_tasks(&mut self) {
+        self.clean_deleted_tasks();
         self.update_status_of_all_tasks();
         self.tasks.sort_by(|ta, tb| {
             if ta.has_higher_priority_than(tb) {
@@ -156,7 +158,7 @@ impl Manager {
         } else {
             self.tasks[index].start();
             self.dump_tasks();
-            println!("task {} started", index);
+            println!("task {index} started");
         }
     }
 
@@ -166,7 +168,7 @@ impl Manager {
         } else {
             self.tasks[index].complete();
             self.dump_tasks();
-            println!("task {} completed", index);
+            println!("task {index} completed");
         }
     }
 
@@ -174,9 +176,9 @@ impl Manager {
         if self.tasks.len() <= index {
             eprintln!("index out of range");
         } else {
-            self.tasks.remove(index);
+            self.tasks[index].delete();
             self.dump_tasks();
-            println!("task {} deleted", index);
+            println!("task {index} deleted");
         }
     }
 
@@ -215,13 +217,14 @@ impl Manager {
             }
             task.update_status();
             self.dump_tasks();
-            println!("task {} edited", index);
+            println!("task {index} edited");
         }
         Ok(())
     }
 
     fn list_tasks(&mut self, option: &ListOption) {
         self.update_status_of_all_tasks();
+        render_header_if_verbose_list(option);
         self.tasks
             .iter()
             .enumerate()
@@ -242,6 +245,7 @@ impl Manager {
         assert_eq!(op, DateFilterOp::Equal);
         Timeline::new(&tasks, date).draw();
         println!();
+        render_header_if_verbose_list(option);
         tasks
             .iter()
             .enumerate()
@@ -252,6 +256,10 @@ impl Manager {
                     option.is_verbose,
                 )
             });
+    }
+
+    fn clean_deleted_tasks(&mut self) {
+        self.tasks.retain(|task| !task.is_deleted);
     }
 
     fn update_status_of_all_tasks(&mut self) {
@@ -268,11 +276,29 @@ impl Manager {
                     &datetime_opt_to_string(&task.planned_complete),
                     &datetime_opt_to_string(&task.actual_start),
                     &datetime_opt_to_string(&task.actual_complete),
+                    &task.is_deleted.to_string(),
                 ])
                 .unwrap()
         });
         writer.flush().unwrap();
     }
+}
+
+fn render_header_if_verbose_list(option: &ListOption) {
+    if !option.is_verbose {
+        return;
+    }
+    let indent = if option.has_timeline { 7 } else { 4 };
+    println!(
+        "{}{: <35}{: <20}{: <20}{: <20}{: <20}description",
+        " ".repeat(indent),
+        "status",
+        "planned start",
+        "planned complete",
+        "actual start",
+        "actual complete"
+    );
+    println!("{}", "-".repeat(126 + indent));
 }
 
 pub fn timeline_index_to_char(index: usize) -> char {
@@ -304,10 +330,10 @@ fn get_render_config() -> RenderConfig {
 }
 
 fn get_datetime_input(hint: &str) -> InquireResult<DateTime<Local>> {
-    let date = DateSelect::new(&format!("{} date:", hint))
+    let date = DateSelect::new(&format!("{hint} date:"))
         .with_help_message("select a date")
         .prompt()?;
-    let time = CustomType::<NaiveTime>::new(&format!("{} time:", hint))
+    let time = CustomType::<NaiveTime>::new(&format!("{hint} time:"))
         .with_parser(&|time| NaiveTime::parse_from_str(time, "%H:%M").map_err(|_| ()))
         .with_formatter(&|time| time.format("%H:%M").to_string())
         .with_error_message("please type a valid time.")
@@ -333,7 +359,7 @@ enum EditOperation {
 
 fn get_edit_operation(hint: &str) -> EditOperation {
     let options = vec!["don't update", "reset", "update to..."];
-    let option = Select::new(&format!("update {}?", hint), options)
+    let option = Select::new(&format!("update {hint}?"), options)
         .without_help_message()
         .prompt()
         .unwrap();

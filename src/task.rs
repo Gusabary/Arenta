@@ -21,6 +21,7 @@ pub struct Task {
     pub actual_start: Option<DateTime<Local>>,
     pub actual_complete: Option<DateTime<Local>>,
     pub status: TaskStatus,
+    pub is_deleted: bool,
 }
 
 impl Task {
@@ -32,6 +33,7 @@ impl Task {
             actual_start: Some(Local::now()),
             actual_complete: None,
             status: TaskStatus::Ongoing,
+            is_deleted: false,
         }
     }
 
@@ -51,6 +53,7 @@ impl Task {
             } else {
                 TaskStatus::Planned
             },
+            is_deleted: false,
         }
     }
 
@@ -62,6 +65,7 @@ impl Task {
             actual_start: None,
             actual_complete: None,
             status: TaskStatus::Backlog,
+            is_deleted: false,
         }
     }
 
@@ -71,8 +75,15 @@ impl Task {
     }
 
     pub fn complete(&mut self) {
+        if self.actual_start.is_none() {
+            self.actual_start = Some(Local::now());
+        }
         self.actual_complete = Some(Local::now());
         self.status = TaskStatus::Complete;
+    }
+
+    pub fn delete(&mut self) {
+        self.is_deleted = true;
     }
 
     pub fn update_status(&mut self) {
@@ -140,18 +151,31 @@ impl Task {
     }
 
     pub fn render(&self, index: usize, timeline_index: Option<char>, is_verbose: bool) {
+        let padding = if index >= 10 { " " } else { "  " };
         if let Some(timeline_index) = timeline_index {
-            print!("{}({}). ", index, timeline_index);
+            print!("{index}({timeline_index}).{padding}");
         } else {
-            print!("{}. ", index);
+            print!("{index}.{padding}");
         }
+
+        if self.is_deleted {
+            println!(
+                "{}",
+                "(deleted)".color(Color::TrueColor {
+                    r: 100,
+                    g: 100,
+                    b: 100
+                })
+            );
+            return;
+        }
+
         if is_verbose {
             self.render_time_verbose();
         } else {
             self.render_time_simple();
         }
-        print!("{}", self.description.bold());
-        println!();
+        println!("{}", self.description.bold());
     }
 
     pub fn render_time_simple(&self) {
@@ -164,13 +188,13 @@ impl Task {
         fn datetime_opt_to_str(datetime_opt: &Option<DateTime<Local>>) -> String {
             match datetime_opt {
                 Some(dt) => dt.format("%F %R").to_string(),
-                None => "unset".to_string(),
+                None => "-".to_string(),
             }
         }
-        print!("{: <18}", datetime_opt_to_str(&self.planned_start));
-        print!("{: <18}", datetime_opt_to_str(&self.planned_complete));
-        print!("{: <18}", datetime_opt_to_str(&self.actual_start));
-        print!("{: <18}", datetime_opt_to_str(&self.actual_complete));
+        print!("{: <20}", datetime_opt_to_str(&self.planned_start));
+        print!("{: <20}", datetime_opt_to_str(&self.planned_complete));
+        print!("{: <20}", datetime_opt_to_str(&self.actual_start));
+        print!("{: <20}", datetime_opt_to_str(&self.actual_complete));
     }
 
     fn get_render_status_string(&self) -> String {
@@ -328,6 +352,7 @@ mod tests {
             actual_start: None,
             actual_complete: None,
             status: TaskStatus::Planned,
+            is_deleted: false,
         }
     }
 
