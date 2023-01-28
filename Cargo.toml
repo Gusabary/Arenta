@@ -1,6 +1,14 @@
 [package]
 name = "arenta"
-version = "0.1.0"
+version = "1.0.0"
+description = "A terminal-based daily task management tool with minimal overhead"
+authors = ["Gusabary <Gusabary@126.com>"]
+keywords = ["cli", "terminal", "productivity", "tasks"]
+documentation = "https://github.com/Gusabary/Arenta/blob/master/README.md"
+homepage = "https://github.com/Gusabary/Arenta"
+repository = "https://github.com/Gusabary/Arenta"
+readme = "README.md"
+license = "MIT"
 edition = "2021"
 
 [dependencies]
