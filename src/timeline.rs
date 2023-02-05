@@ -1,4 +1,4 @@
-use std::vec;
+use std::{cmp::Ordering, vec};
 
 use crate::{manager::timeline_index_to_char, task::Task};
 use chrono::{DateTime, Local, NaiveDate, NaiveTime};
@@ -50,17 +50,16 @@ pub struct Timeline<'a> {
 impl<'a> Timeline<'a> {
     pub fn new(tasks: &'a Vec<(usize, &'a Task)>, date: NaiveDate) -> Self {
         assert!(tasks.len() <= 26);
-        let pos_of_now = if Local::now().date_naive() == date {
-            Some(get_pos_in_row(&Local::now()))
-        } else {
-            None
-        };
-        Timeline {
+        let mut timeline = Timeline {
             tasks,
             canvas: vec![],
             date,
-            pos_of_now,
+            pos_of_now: None,
+        };
+        if Local::now().date_naive() == date {
+            timeline.pos_of_now = Some(timeline.get_pos_in_row(&Local::now()));
         }
+        timeline
     }
 
     pub fn draw(&mut self) {
@@ -127,9 +126,9 @@ impl<'a> Timeline<'a> {
         if task.is_deleted {
             return;
         }
-        if self.date_includes(&task.planned_start) && self.date_includes(&task.planned_complete) {
-            let start_pos = get_pos_in_row(&task.planned_start.unwrap());
-            let end_pos = get_pos_in_row(&task.planned_complete.unwrap());
+        if self.date_includes(&task.planned_start) || self.date_includes(&task.planned_complete) {
+            let start_pos = self.get_pos_in_row(&task.planned_start.unwrap());
+            let end_pos = self.get_pos_in_row(&task.planned_complete.unwrap());
             self.populate_index_and_line(
                 start_pos,
                 end_pos,
@@ -137,23 +136,15 @@ impl<'a> Timeline<'a> {
                 Pixel::new('-', Some(task.color_of_status())),
             );
         }
-        if self.date_includes(&task.actual_start) {
-            let start_pos = get_pos_in_row(&task.actual_start.unwrap());
+        if self.date_includes(&task.actual_start) || self.date_includes(&task.actual_complete) {
+            let start_pos = self.get_pos_in_row(&task.actual_start.unwrap());
             let end_pos = task
                 .actual_complete
                 .map_or(self.pos_of_now.unwrap_or(UI_MAX_WIDTH as i64 - 1), |dt| {
-                    get_pos_in_row(&dt)
+                    self.get_pos_in_row(&dt)
                 });
             self.populate_index_and_line(
                 start_pos,
-                end_pos,
-                index,
-                Pixel::new('=', Some(task.color_of_status())),
-            );
-        } else if self.date_includes(&task.actual_complete) {
-            let end_pos = get_pos_in_row(&task.actual_complete.unwrap());
-            self.populate_index_and_line(
-                1,
                 end_pos,
                 index,
                 Pixel::new('=', Some(task.color_of_status())),
@@ -186,13 +177,19 @@ impl<'a> Timeline<'a> {
     fn put_in_row(&mut self, row: usize, start_pos: usize, end_pos: usize, pixel: Pixel) {
         self.canvas[row].splice(start_pos..=end_pos, vec![pixel; end_pos - start_pos + 1]);
     }
-}
 
-fn get_pos_in_row(dt: &DateTime<Local>) -> i64 {
-    const START_HOUR: u32 = 8;
-    const TIMELINE_TICK: usize = 10;
-    let offset = dt.time() - NaiveTime::from_hms_opt(START_HOUR, 0, 0).unwrap();
-    offset.num_minutes() / TIMELINE_TICK as i64
+    fn get_pos_in_row(&self, dt: &DateTime<Local>) -> i64 {
+        match dt.date_naive().cmp(&self.date) {
+            Ordering::Less => 1,
+            Ordering::Greater => UI_MAX_WIDTH as i64 - 1,
+            Ordering::Equal => {
+                const START_HOUR: u32 = 8;
+                const TIMELINE_TICK: usize = 10;
+                let offset = dt.time() - NaiveTime::from_hms_opt(START_HOUR, 0, 0).unwrap();
+                offset.num_minutes() / TIMELINE_TICK as i64
+            }
+        }
+    }
 }
 
 fn can_put_in_row(row: &[Pixel], start_pos: usize, end_pos: usize) -> bool {
