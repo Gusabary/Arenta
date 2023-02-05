@@ -106,6 +106,7 @@ impl Task {
     pub fn satisfy(&self, option: &ListOption) -> bool {
         match self.status {
             TaskStatus::Backlog => option.include_backlog,
+            TaskStatus::Overdue => true,
             _ => {
                 let (op, date) = &option.date_filter;
                 compare_date(&self.planned_start, *op, date)
