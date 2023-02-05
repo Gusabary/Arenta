@@ -1,6 +1,6 @@
 # Arenta
 
-![](https://img.shields.io/badge/version-v1.0.1-9cf) ![](https://img.shields.io/badge/license-MIT-blue)
+![](https://img.shields.io/badge/version-v1.0.2-9cf) ![](https://img.shields.io/badge/license-MIT-blue)
 
 A terminal-based daily task management tool with minimal overhead.
 
